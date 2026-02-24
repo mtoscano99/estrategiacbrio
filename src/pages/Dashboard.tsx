@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   BarChart3,
   CalendarClock,
+  DollarSign,
+  TrendingDown,
+  Wallet,
+  Percent,
 } from "lucide-react";
 import {
   BarChart,
@@ -24,17 +28,30 @@ import {
   PieChart,
   Pie,
   Cell,
+  Legend,
 } from "recharts";
-import { format, differenceInDays, isPast, isFuture, isToday } from "date-fns";
+import { format, differenceInDays, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-
 
 interface Stats {
   total: number;
   emAndamento: number;
   atrasados: number;
   concluidos: number;
+}
+
+interface FinanceiroTotal {
+  orcamento: number;
+  gasto: number;
+  saldo: number;
+  percentual: number;
+}
+
+interface FinanceiroPorArea {
+  nome: string;
+  orcamento: number;
+  gasto: number;
+  percentual: number;
 }
 
 interface UpcomingMilestone {
@@ -56,7 +73,14 @@ const STATUS_COLORS = {
   cancelado: "hsl(215, 15%, 70%)",
 };
 
+const fmtBRL = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+const getConsumoColor = (pct: number) => {
+  if (pct < 50) return "hsl(142, 70%, 40%)";
+  if (pct <= 80) return "hsl(45, 93%, 47%)";
+  return "hsl(0, 72%, 51%)";
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -65,13 +89,15 @@ export default function Dashboard() {
   const [statusData, setStatusData] = useState<any[]>([]);
   const [topKpis, setTopKpis] = useState<any[]>([]);
   const [upcomingMilestones, setUpcomingMilestones] = useState<UpcomingMilestone[]>([]);
+  const [financeiroTotal, setFinanceiroTotal] = useState<FinanceiroTotal>({ orcamento: 0, gasto: 0, saldo: 0, percentual: 0 });
+  const [financeiroPorArea, setFinanceiroPorArea] = useState<FinanceiroPorArea[]>([]);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const { data: projetos } = await supabase.from("projetos").select("id, status, area_id, areas_estrategicas(nome)");
+    const { data: projetos } = await supabase.from("projetos").select("id, status, area_id, orcamento_previsto, valor_gasto, areas_estrategicas(nome)");
 
     if (projetos) {
       setStats({
@@ -100,6 +126,41 @@ export default function Dashboard() {
           value,
           fill: STATUS_COLORS[name as keyof typeof STATUS_COLORS] || "hsl(215, 15%, 50%)",
         }))
+      );
+
+      // Financial data
+      let totalOrcamento = 0;
+      let totalGasto = 0;
+      const areaFinMap: Record<string, { orcamento: number; gasto: number }> = {};
+
+      projetos.forEach((p: any) => {
+        const orc = Number(p.orcamento_previsto) || 0;
+        const gst = Number(p.valor_gasto) || 0;
+        totalOrcamento += orc;
+        totalGasto += gst;
+
+        const area = p.areas_estrategicas?.nome || "Sem área";
+        if (!areaFinMap[area]) areaFinMap[area] = { orcamento: 0, gasto: 0 };
+        areaFinMap[area].orcamento += orc;
+        areaFinMap[area].gasto += gst;
+      });
+
+      setFinanceiroTotal({
+        orcamento: totalOrcamento,
+        gasto: totalGasto,
+        saldo: totalOrcamento - totalGasto,
+        percentual: totalOrcamento > 0 ? (totalGasto / totalOrcamento) * 100 : 0,
+      });
+
+      setFinanceiroPorArea(
+        Object.entries(areaFinMap)
+          .map(([nome, v]) => ({
+            nome,
+            orcamento: v.orcamento,
+            gasto: v.gasto,
+            percentual: v.orcamento > 0 ? (v.gasto / v.orcamento) * 100 : 0,
+          }))
+          .sort((a, b) => b.orcamento - a.orcamento)
       );
     }
 
@@ -157,6 +218,27 @@ export default function Dashboard() {
     { title: "Concluídos", value: stats.concluidos, icon: CheckCircle2, color: "text-success" },
   ];
 
+  const finCards = [
+    { title: "Orçamento Total", value: fmtBRL(financeiroTotal.orcamento), icon: DollarSign, color: "text-primary" },
+    { title: "Total Gasto", value: fmtBRL(financeiroTotal.gasto), icon: TrendingDown, color: "text-destructive" },
+    { title: "Saldo Restante", value: fmtBRL(financeiroTotal.saldo), icon: Wallet, color: financeiroTotal.saldo >= 0 ? "text-success" : "text-destructive" },
+    { title: "% Consumo", value: `${financeiroTotal.percentual.toFixed(1)}%`, icon: Percent, color: financeiroTotal.percentual > 80 ? "text-destructive" : financeiroTotal.percentual > 50 ? "text-warning" : "text-success" },
+  ];
+
+  const CustomTooltipBRL = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+        <p className="font-medium mb-1">{label}</p>
+        {payload.map((p: any) => (
+          <p key={p.dataKey} style={{ color: p.color }}>
+            {p.name}: {fmtBRL(p.value)}
+          </p>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -164,7 +246,7 @@ export default function Dashboard() {
         <p className="text-muted-foreground mt-1">Visão geral do quadriênio 2026–2029</p>
       </div>
 
-      {/* KPI Cards */}
+      {/* Status Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpiCards.map((kpi) => (
           <Card key={kpi.title} className="shadow-sm hover:shadow-md transition-shadow">
@@ -183,9 +265,26 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* Financial Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {finCards.map((fc) => (
+          <Card key={fc.title} className="shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">{fc.title}</p>
+                  <p className="text-2xl font-bold mt-1">{fc.value}</p>
+                </div>
+                <div className={`p-3 rounded-xl bg-muted ${fc.color}`}>
+                  <fc.icon className="h-6 w-6" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-
-      {/* Charts */}
+      {/* Charts - Projects */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="shadow-sm">
           <CardHeader>
@@ -234,6 +333,57 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Charts - Financial */}
+      {financeiroPorArea.length > 0 && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-primary" />
+                Orçamento vs Gasto por Área
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={financeiroPorArea}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" />
+                  <XAxis dataKey="nome" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmtBRL(v)} />
+                  <Tooltip content={<CustomTooltipBRL />} />
+                  <Legend />
+                  <Bar dataKey="orcamento" name="Orçamento" fill="hsl(215, 80%, 45%)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="gasto" name="Gasto" fill="hsl(0, 72%, 51%)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Percent className="h-5 w-5 text-primary" />
+                % Consumo por Área
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={financeiroPorArea} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 90%)" />
+                  <XAxis type="number" tick={{ fontSize: 11 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <YAxis type="category" dataKey="nome" tick={{ fontSize: 11 }} width={120} />
+                  <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} />
+                  <Bar dataKey="percentual" name="% Consumo" radius={[0, 4, 4, 0]}>
+                    {financeiroPorArea.map((entry, index) => (
+                      <Cell key={index} fill={getConsumoColor(entry.percentual)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Upcoming Milestones */}
       {upcomingMilestones.length > 0 && (
