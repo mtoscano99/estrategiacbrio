@@ -208,6 +208,75 @@ export default function Dashboard() {
           responsavel_avatar: e.responsavel_id ? profilesMap[e.responsavel_id]?.avatar_url || null : null,
         }))
       );
+
+      // Generate delay notifications for overdue etapas
+      generateDelayNotifications(etapas as any[]);
+    }
+  };
+
+  const generateDelayNotifications = async (etapas: any[]) => {
+    const overdueEtapas = etapas.filter((e) => {
+      if (!e.data_fim || e.status === "concluido" || e.status === "cancelado") return false;
+      const dataFim = new Date(e.data_fim);
+      return isPast(dataFim) && !isToday(dataFim);
+    });
+
+    if (overdueEtapas.length === 0) return;
+
+    // Get existing recent delay notifications to avoid duplicates (last 24h)
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+    const { data: existingNotifs } = await supabase
+      .from("notificacoes")
+      .select("link")
+      .eq("tipo", "atraso")
+      .gte("created_at", oneDayAgo.toISOString());
+
+    const existingLinks = new Set(existingNotifs?.map((n) => n.link) || []);
+
+    const newNotifs: Array<{
+      usuario_id: string;
+      tipo: string;
+      titulo: string;
+      mensagem: string;
+      link: string;
+    }> = [];
+
+    for (const e of overdueEtapas) {
+      const link = `/projetos/${e.projeto_id}`;
+      if (existingLinks.has(link + `#etapa-${e.id}`)) continue;
+
+      const targets: string[] = [];
+      if (e.responsavel_id) targets.push(e.responsavel_id);
+
+      // Also notify project owner if different
+      const proj = e.projetos;
+      if (proj) {
+        const { data: projeto } = await supabase
+          .from("projetos")
+          .select("responsavel_id")
+          .eq("id", e.projeto_id)
+          .single();
+        if (projeto?.responsavel_id && !targets.includes(projeto.responsavel_id)) {
+          targets.push(projeto.responsavel_id);
+        }
+      }
+
+      const days = Math.abs(differenceInDays(new Date(e.data_fim), new Date()));
+      for (const uid of targets) {
+        newNotifs.push({
+          usuario_id: uid,
+          tipo: "atraso",
+          titulo: `Etapa atrasada: ${e.nome}`,
+          mensagem: `A etapa "${e.nome}" do projeto ${e.projetos?.nome || ""} está ${days} dia(s) atrasada.`,
+          link: `${link}#etapa-${e.id}`,
+        });
+      }
+    }
+
+    if (newNotifs.length > 0) {
+      await supabase.from("notificacoes").insert(newNotifs);
     }
   };
 
