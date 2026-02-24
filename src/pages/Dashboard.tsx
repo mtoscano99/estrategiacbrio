@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import {
   FolderKanban,
@@ -8,6 +10,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   TrendingUp,
+  BarChart3,
 } from "lucide-react";
 import {
   BarChart,
@@ -45,9 +48,11 @@ const YEARS = [
 ];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>({ total: 0, emAndamento: 0, atrasados: 0, concluidos: 0 });
   const [projectsByArea, setProjectsByArea] = useState<any[]>([]);
   const [statusData, setStatusData] = useState<any[]>([]);
+  const [topKpis, setTopKpis] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
@@ -84,6 +89,17 @@ export default function Dashboard() {
           fill: STATUS_COLORS[name as keyof typeof STATUS_COLORS] || "hsl(215, 15%, 50%)",
         }))
       );
+    }
+
+    // Load top KPIs
+    const { data: kpis } = await supabase.from("kpis").select("id, nome, unidade, meta, areas_estrategicas(nome)").limit(5);
+    if (kpis && kpis.length > 0) {
+      const { data: meds } = await supabase.from("kpi_medicoes").select("kpi_id, valor, data_referencia").order("data_referencia", { ascending: false });
+      const kpiList = (kpis as any[]).map((k: any) => {
+        const lastMed = meds?.find((m: any) => m.kpi_id === k.id);
+        return { ...k, lastValue: lastMed?.valor ?? null, area_nome: k.areas_estrategicas?.nome };
+      });
+      setTopKpis(kpiList);
     }
   };
 
@@ -198,6 +214,41 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Top KPIs */}
+      {topKpis.length > 0 && (
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Indicadores (KPIs)
+            </CardTitle>
+            <button onClick={() => navigate("/kpis")} className="text-sm text-primary hover:underline">Ver todos</button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {topKpis.map((k: any) => {
+                const progress = k.meta > 0 && k.lastValue !== null ? Math.min((k.lastValue / k.meta) * 100, 100) : 0;
+                return (
+                  <div key={k.id} className="flex items-center gap-4 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -mx-2 transition-colors" onClick={() => navigate(`/kpis/${k.id}`)}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{k.nome}</p>
+                      <p className="text-xs text-muted-foreground">{k.area_nome || "Geral"}</p>
+                    </div>
+                    <div className="w-32">
+                      <Progress value={progress} className="h-2" />
+                    </div>
+                    <div className="text-right shrink-0 w-20">
+                      <p className="text-sm font-bold">{k.lastValue ?? "—"}</p>
+                      <p className="text-xs text-muted-foreground">/{k.meta} {k.unidade}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -237,6 +237,115 @@ export type Database = {
           },
         ]
       }
+      kpi_medicoes: {
+        Row: {
+          created_at: string
+          data_referencia: string
+          id: string
+          kpi_id: string
+          observacao: string | null
+          registrado_por: string | null
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          data_referencia: string
+          id?: string
+          kpi_id: string
+          observacao?: string | null
+          registrado_por?: string | null
+          valor: number
+        }
+        Update: {
+          created_at?: string
+          data_referencia?: string
+          id?: string
+          kpi_id?: string
+          observacao?: string | null
+          registrado_por?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_medicoes_kpi_id_fkey"
+            columns: ["kpi_id"]
+            isOneToOne: false
+            referencedRelation: "kpis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kpi_medicoes_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kpis: {
+        Row: {
+          area_id: string | null
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          id: string
+          meta: number
+          nome: string
+          objetivo_id: string | null
+          periodicidade: string
+          unidade: string
+          updated_at: string
+        }
+        Insert: {
+          area_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          meta?: number
+          nome: string
+          objetivo_id?: string | null
+          periodicidade?: string
+          unidade?: string
+          updated_at?: string
+        }
+        Update: {
+          area_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          meta?: number
+          nome?: string
+          objetivo_id?: string | null
+          periodicidade?: string
+          unidade?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpis_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "areas_estrategicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kpis_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kpis_objetivo_id_fkey"
+            columns: ["objetivo_id"]
+            isOneToOne: false
+            referencedRelation: "objetivos_estrategicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       objetivos_estrategicos: {
         Row: {
           ano: number
