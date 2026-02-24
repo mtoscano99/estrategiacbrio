@@ -1,79 +1,47 @@
 
 
-# Sistema de Gestão de Projetos Estratégicos – CBRio
+# Login com Google + Seleção de Perfil no Cadastro
 
-## Visão Geral
-Sistema web completo para a Coordenação de Gestão Estratégica da CBRio, permitindo o acompanhamento macro e micro de todos os projetos do quadriênio 2026-2029. O sistema será alimentado com os dados do Planejamento Estratégico existente e permitirá que líderes de área proponham novos projetos, com fluxo de aprovação pela coordenação.
+## O que será feito
 
-**Design**: Visual corporativo e limpo, tons neutros com destaque em azul, tipografia clara e profissional.
+1. **Habilitar login com Google** usando o sistema gerenciado do Lovable Cloud (sem necessidade de configurar credenciais).
 
----
+2. **Adicionar seleção de perfil no cadastro** -- ao criar conta (email/senha), o usuário escolhe se é "Coordenador(a)" ou "Líder de Área".
 
-## Funcionalidades
+3. **Criar página de seleção de perfil para novos usuários Google** -- quando um usuário faz login com Google pela primeira vez e ainda não tem role definida, será redirecionado para uma tela onde escolhe seu perfil antes de acessar o sistema.
 
-### 1. Autenticação e Controle de Acesso
-- Login com e-mail e senha via Supabase Auth
-- Dois perfis de acesso: **Coordenação** (visão completa + aprovações) e **Líder de Área** (visão da sua área + proposição de projetos)
-- Cada usuário vinculado a uma área (Gestão, RH, Financeiro, Ministerial, Infraestrutura, Comunicação, Relacionamento, etc.)
+4. **Criar edge function para atribuir role** -- para inserir na tabela `user_roles` de forma segura (já que o usuário recém-criado não tem permissão de INSERT nessa tabela via RLS).
 
-### 2. Dashboard Estratégico (Visão Macro)
-- Painel inicial com visão geral do quadriênio 2026-2029 baseado no documento do PE
-- **Indicadores-chave (KPIs)** em cards: total de projetos, projetos em andamento, atrasados, concluídos, orçamento total vs. gasto
-- **Linha do tempo dos Objetivos Estratégicos** por ano (Unidade 2026 → Reavaliação 2027 → Escalonamento 2028 → Maturidade 2029)
-- Gráficos de progresso por área estratégica e por ano
-- Filtros por ano, área, status e responsável
+## Detalhes Técnicos
 
-### 3. Gestão de Projetos (Visão Micro)
-- Cadastro completo de projetos com: nome, descrição, área estratégica, objetivo estratégico vinculado, responsável, datas de início/término, orçamento previsto
-- **Etapas/marcos** dentro de cada projeto com status (não iniciado, em andamento, concluído, atrasado)
-- **Cronograma visual** tipo Gantt simplificado por projeto
-- Acompanhamento financeiro: valor orçado vs. valor gasto (com inserção manual ou importação CSV)
-- Indicador de saúde do projeto (no prazo, atenção, atrasado) calculado automaticamente
-- Histórico de atualizações e comentários em cada projeto
+### 1. Configurar Social Login (Google)
+- Usar a ferramenta `configure-social-auth` para gerar o módulo `src/integrations/lovable`
+- Usar `lovable.auth.signInWithOAuth("google", ...)` no botão de login
 
-### 4. Formulário de Proposição de Projetos
-- Formulário estruturado para líderes de área proporem novos projetos
-- Campos: título, justificativa, objetivo estratégico vinculado, área responsável, estimativa de prazo, estimativa de orçamento, entregas esperadas
-- Fluxo de aprovação: Líder submete → Coordenação recebe notificação → Aprova/Rejeita com comentário
-- Projetos aprovados entram automaticamente no portfólio de gestão
+### 2. Alterar `src/pages/Login.tsx`
+- Adicionar botão "Entrar com Google"
+- No formulário de cadastro (sign up), adicionar radio group para selecionar perfil: "Coordenação" ou "Líder de Área"
+- Salvar a role escolhida nos metadados do usuário (`raw_user_meta_data.role`) durante o signup
 
-### 5. Base de Dados do Planejamento Estratégico
-- Toda a estrutura do PE pré-cadastrada: Macro Eixo, Objetivos Estratégicos por ano, Alvos, KPIs, Metas
-- As planilhas de ação de 2026 a 2029 do documento já cadastradas como projetos iniciais
-- Áreas estratégicas, responsáveis e indicadores conforme o documento
-- Dados do diagnóstico situacional (frequência, financeiro, voluntariado) como referência consultável
+### 3. Criar `src/pages/SelecionarPerfil.tsx`
+- Tela simples com radio group para escolher perfil
+- Aparece apenas para usuários autenticados que ainda não têm role na tabela `user_roles`
+- Chama a edge function para salvar a role
 
-### 6. Relatórios Padronizados
-- Geração de relatório em PDF de qualquer projeto selecionado contendo:
-  - Dados gerais do projeto (nome, área, responsável, objetivo vinculado)
-  - Cronograma com etapas e status
-  - Financeiro: valor orçado vs. gasto (com gráfico)
-  - Lista de responsáveis
-  - Progresso das etapas/entregas
-  - Observações e histórico
-- Relatório consolidado por área ou por ano
-- Exportação em PDF
+### 4. Criar edge function `assign-role`
+- Recebe `{ role: "coordenacao" | "lider_area" }` 
+- Verifica se o usuário autenticado ainda não tem role
+- Insere na tabela `user_roles` usando service role key
 
-### 7. Importação de Dados Financeiros
-- Upload de arquivos CSV com dados financeiros
-- Mapeamento de colunas e vinculação ao projeto correto
-- Histórico de importações
+### 5. Atualizar trigger `handle_new_user`
+- Migração SQL: se o `raw_user_meta_data` contiver `role`, inserir automaticamente na `user_roles` ao criar o perfil (para cadastros via email/senha)
 
----
+### 6. Atualizar `src/App.tsx` e `AuthContext`
+- Adicionar rota `/selecionar-perfil`
+- No `ProtectedRoute`, redirecionar para `/selecionar-perfil` se o usuário não tiver role definida
+- Adicionar `needsRole` no contexto de auth
 
-## Estrutura de Páginas
-1. **Login** – Autenticação
-2. **Dashboard** – Visão macro do quadriênio
-3. **Projetos** – Lista e gestão de todos os projetos
-4. **Projeto (detalhe)** – Visão micro com cronograma, financeiro, etapas
-5. **Novo Projeto** – Formulário de proposição
-6. **Aprovações** – Fila de projetos pendentes (apenas coordenação)
-7. **Planejamento Estratégico** – Consulta ao PE (objetivos, metas, KPIs)
-8. **Relatórios** – Geração e download de relatórios
-
-## Tecnologia
-- **Frontend**: React + Tailwind CSS + shadcn/ui (já configurado)
-- **Backend**: Supabase (banco de dados PostgreSQL, autenticação, RLS)
-- **Gráficos**: Recharts (já instalado)
-- **PDF**: Geração de relatórios no navegador
+### 7. Atualizar rotas
+- `/selecionar-perfil` -- rota protegida (precisa estar logado, mas sem role)
+- Redirecionar automaticamente após seleção para `/dashboard`
 
