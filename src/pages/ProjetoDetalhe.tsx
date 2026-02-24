@@ -458,6 +458,18 @@ export default function ProjetoDetalhe() {
       conteudo: novoComentario,
     });
     if (error) { toast.error("Erro ao adicionar comentário"); return; }
+
+    // Notificar responsável do projeto (se diferente do autor)
+    if (projeto?.responsavel_id && projeto.responsavel_id !== user.id) {
+      await supabase.from("notificacoes").insert({
+        usuario_id: projeto.responsavel_id,
+        tipo: "comentario",
+        titulo: `Novo comentário em "${projeto.nome}"`,
+        mensagem: novoComentario.slice(0, 120),
+        link: `/projetos/${id}`,
+      } as any);
+    }
+
     setNovoComentario("");
     loadData();
   };

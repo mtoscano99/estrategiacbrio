@@ -73,6 +73,21 @@ export default function Aprovacoes() {
       }
     }
 
+    // Criar notificação para o proponente
+    if (proposta) {
+      const novoProjetoId = status === "aprovado"
+        ? (await supabase.from("propostas_projeto").select("projeto_gerado_id").eq("id", propostaId).single()).data?.projeto_gerado_id
+        : null;
+
+      await supabase.from("notificacoes").insert({
+        usuario_id: proposta.proponente_id,
+        tipo: status === "aprovado" ? "aprovacao" : "rejeicao",
+        titulo: status === "aprovado" ? "Proposta aprovada!" : "Proposta rejeitada",
+        mensagem: `"${proposta.titulo}"${comentarios[propostaId] ? ` — ${comentarios[propostaId]}` : ""}`,
+        link: novoProjetoId ? `/projetos/${novoProjetoId}` : null,
+      } as any);
+    }
+
     toast.success(status === "aprovado" ? "Proposta aprovada!" : "Proposta rejeitada");
     loadData();
   };
