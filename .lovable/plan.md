@@ -1,92 +1,61 @@
 
 
-# Perfil de Usuario com Foto, Cargo, Nascimento e Contato
+# Calendario de Eventos - Projetos, Etapas e Marcos
 
 ## Resumo
 
-Criar uma pagina de perfil do usuario e estender a tabela `profiles` com novos campos (foto, cargo, data de nascimento, telefone, email de contato). Fotos de perfil serao exibidas como avatares ao lado do nome em todos os dropdowns do sistema.
+Criar uma pagina de calendario completo estilo Google Calendar onde o usuario visualiza, dia a dia, seus projetos e etapas/marcos nos quais e responsavel. A visualizacao incluira modos mensal, semanal e diario, com eventos coloridos por tipo (projeto vs etapa) e status.
 
 ## O que muda para o usuario
 
-1. **Nova pagina "Meu Perfil"** acessivel pela sidebar (clicando no nome/avatar na parte inferior)
-2. Na pagina de perfil pode:
-   - Fazer upload e trocar foto de perfil
-   - Editar cargo, data de nascimento, telefone e email de contato
-3. **Avatares com foto** aparecem em todos os selects/dropdowns de responsavel (NovoProjeto, ProjetoDetalhe etapas) e na sidebar
-4. Storage bucket `avatars` criado para armazenar as fotos
+1. Nova pagina **"Calendario"** acessivel pela sidebar (icone de calendario)
+2. Visualizacao mensal com celulas de dia mostrando eventos (projetos e etapas com datas)
+3. Navegacao entre meses (anterior/proximo/hoje)
+4. Eventos coloridos por tipo:
+   - **Projetos** (azul) - mostra data_inicio ate data_fim do projeto
+   - **Etapas/Marcos** (verde/vermelho) - mostra data_inicio e data_fim da etapa, com vermelho se atrasada
+5. Ao clicar em um evento, navega para o detalhe do projeto correspondente
+6. Filtra automaticamente para mostrar apenas itens onde o usuario e responsavel (ou todos para coordenacao)
+7. Badge com contagem de eventos quando ha mais do que cabem na celula
 
 ## Detalhes Tecnicos
 
-### 1. Migracao no banco de dados
+### 1. Nova pagina `src/pages/Calendario.tsx`
 
-Adicionar colunas na tabela `profiles`:
+- Estado para mes/ano atual com navegacao
+- Carrega dados de duas fontes:
+  - `projetos` - filtra por `responsavel_id = user.id` (ou todos para coordenacao), usa `data_inicio` e `data_fim`
+  - `etapas_projeto` - filtra por `responsavel_id = user.id` (ou todas para coordenacao), usa `data_inicio` e `data_fim`, com join em `projetos(nome)`
+- Monta grid de calendario: 7 colunas (Dom-Sab), linhas conforme semanas do mes
+- Cada celula do dia lista os eventos daquele dia (inicio, fim, ou dentro do range)
+- Eventos clicaveis que navegam para `/projetos/:id`
+- Layout responsivo: em telas menores, mostra apenas indicadores (bolinhas coloridas) e ao clicar no dia expande lista
 
-```sql
-ALTER TABLE public.profiles ADD COLUMN avatar_url text;
-ALTER TABLE public.profiles ADD COLUMN cargo text;
-ALTER TABLE public.profiles ADD COLUMN data_nascimento date;
-ALTER TABLE public.profiles ADD COLUMN telefone text;
-ALTER TABLE public.profiles ADD COLUMN email_contato text;
-```
+### 2. Componente auxiliar (inline ou separado)
 
-### 2. Storage bucket para avatares
+- Funcao utilitaria para gerar dias do calendario (incluindo dias do mes anterior/posterior para completar a grid)
+- Funcao para verificar se uma data esta dentro do range de um evento
 
-```sql
-INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true);
+### 3. Atualizar `src/App.tsx`
 
-CREATE POLICY "Anyone can read avatars"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'avatars');
+- Importar e adicionar rota `/calendario` com componente `Calendario`
 
-CREATE POLICY "Users can upload own avatar"
-  ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+### 4. Atualizar `src/components/layout/AppSidebar.tsx`
 
-CREATE POLICY "Users can update own avatar"
-  ON storage.objects FOR UPDATE
-  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+- Adicionar item de navegacao "Calendario" com icone `CalendarDays` do lucide-react, posicionado apos "Projetos"
 
-CREATE POLICY "Users can delete own avatar"
-  ON storage.objects FOR DELETE
-  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
-```
+### 5. Estilos e interacao
 
-### 3. Nova pagina `src/pages/MeuPerfil.tsx`
+- Celulas do dia com min-height para acomodar eventos
+- Dia atual destacado com borda/fundo azul
+- Eventos com cores:
+  - Projeto: `bg-blue-100 text-blue-800 border-l-2 border-blue-500`
+  - Etapa no prazo: `bg-emerald-100 text-emerald-800 border-l-2 border-emerald-500`
+  - Etapa atrasada: `bg-red-100 text-red-800 border-l-2 border-red-500`
+- Hover com tooltip mostrando nome completo do projeto/etapa
+- Header com botoes "Anterior", "Hoje", "Proximo" e titulo "Mes Ano"
 
-- Exibe foto atual (ou iniciais como fallback) com botao de upload
-- Upload envia para `avatars/{user_id}/avatar.png` e atualiza `profiles.avatar_url`
-- Formulario com campos: nome, cargo, data de nascimento, telefone, email de contato
-- Salva via update na tabela `profiles`
+### 6. Nenhuma alteracao de banco necessaria
 
-### 4. Atualizar `src/contexts/AuthContext.tsx`
-
-- Expandir interface `Profile` com `avatar_url`, `cargo`, `data_nascimento`, `telefone`, `email_contato`
-- Atualizar o select em `fetchProfile` para incluir os novos campos
-- Adicionar funcao `refreshProfile` no contexto para recarregar apos edicao
-
-### 5. Atualizar `src/components/layout/AppSidebar.tsx`
-
-- Exibir avatar do usuario (usando componente Avatar) ao lado do nome na parte inferior
-- Avatar clicavel leva para `/perfil`
-
-### 6. Atualizar `src/App.tsx`
-
-- Adicionar rota `/perfil` com componente `MeuPerfil`
-
-### 7. Componente auxiliar `src/components/UserAvatar.tsx`
-
-Componente reutilizavel que recebe `avatarUrl` e `nome`, exibe a foto ou as iniciais como fallback. Sera usado nos dropdowns e na sidebar.
-
-### 8. Atualizar dropdowns de responsavel
-
-Nos seguintes arquivos, atualizar o select de profiles para incluir `avatar_url` na query e exibir `UserAvatar` ao lado do nome nos `SelectItem`:
-
-- `src/pages/NovoProjeto.tsx` - dropdown de responsavel
-- `src/pages/ProjetoDetalhe.tsx` - dropdowns de responsavel nas etapas (criacao e edicao)
-
-A query de profiles passa de `select("id, nome")` para `select("id, nome, avatar_url")`.
-
-### 9. RLS existente dos profiles
-
-A politica "Users can update own profile" ja cobre os novos campos. Nao e necessario criar novas politicas, pois as existentes aplicam-se a todas as colunas.
+Todos os dados necessarios (projetos com datas e responsavel, etapas com datas e responsavel) ja existem nas tabelas. As RLS policies existentes ja filtram corretamente por area/responsavel.
 
