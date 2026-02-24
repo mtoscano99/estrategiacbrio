@@ -15,13 +15,30 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   ArrowLeft, Calendar, DollarSign, Plus, Send, CheckCircle2,
   Clock, AlertTriangle, BarChart3, Sparkles, Loader2, Check, X,
-  ChevronDown, Trash2, User,
+  ChevronDown, Trash2, User, GripVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import ReactMarkdown from "react-markdown";
 import SWOTMatrix from "@/components/projetos/SWOTMatrix";
 import { UserAvatar } from "@/components/UserAvatar";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const STATUS_LABELS: Record<string, string> = {
   nao_iniciado: "Não Iniciado",
@@ -30,6 +47,140 @@ const STATUS_LABELS: Record<string, string> = {
   atrasado: "Atrasado",
   cancelado: "Cancelado",
 };
+
+function SortableEtapaItem({
+  etapa,
+  index,
+  profiles,
+  expandedEtapa,
+  setExpandedEtapa,
+  updateEtapa,
+  deleteEtapa,
+}: {
+  etapa: any;
+  index: number;
+  profiles: any[];
+  expandedEtapa: string | null;
+  setExpandedEtapa: (id: string | null) => void;
+  updateEtapa: (id: string, field: string, value: any) => void;
+  deleteEtapa: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: etapa.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    opacity: isDragging ? 0.8 : 1,
+  };
+
+  const responsavelNome = profiles.find((p: any) => p.id === etapa.responsavel_id)?.nome;
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Collapsible
+        open={expandedEtapa === etapa.id}
+        onOpenChange={(open) => setExpandedEtapa(open ? etapa.id : null)}
+      >
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="flex items-center">
+            <button
+              className="p-2 cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground touch-none"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+            <CollapsibleTrigger asChild>
+              <button className="flex items-center gap-3 p-3 pl-0 flex-1 text-left hover:bg-muted/50 transition-colors">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${etapa.status === "concluido" ? "bg-primary text-primary-foreground" : etapa.status === "atrasado" ? "bg-destructive text-destructive-foreground" : "bg-muted text-muted-foreground"}`}>
+                  {etapa.status === "concluido" ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className={`text-sm font-medium ${etapa.status === "concluido" ? "line-through text-muted-foreground" : ""}`}>
+                    {etapa.nome}
+                  </span>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {responsavelNome && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1"><User className="h-3 w-3" />{responsavelNome}</span>
+                    )}
+                    {etapa.data_fim && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(etapa.data_fim), "dd/MM/yyyy")}</span>
+                    )}
+                  </div>
+                </div>
+                <Badge variant={etapa.status === "atrasado" ? "destructive" : etapa.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
+                  {STATUS_LABELS[etapa.status]}
+                </Badge>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${expandedEtapa === etapa.id ? "rotate-180" : ""}`} />
+              </button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent>
+            <div className="px-3 pb-3 pt-1 border-t space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Descrição</label>
+                <Textarea
+                  defaultValue={etapa.descricao || ""}
+                  placeholder="Adicionar descrição..."
+                  className="min-h-[60px]"
+                  onBlur={(e) => { if (e.target.value !== (etapa.descricao || "")) updateEtapa(etapa.id, "descricao", e.target.value); }}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Data Início</label>
+                  <Input type="date" defaultValue={etapa.data_inicio || ""} onBlur={(e) => { if (e.target.value !== (etapa.data_inicio || "")) updateEtapa(etapa.id, "data_inicio", e.target.value); }} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Data Fim</label>
+                  <Input type="date" defaultValue={etapa.data_fim || ""} onBlur={(e) => { if (e.target.value !== (etapa.data_fim || "")) updateEtapa(etapa.id, "data_fim", e.target.value); }} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
+                  <Select value={etapa.responsavel_id || ""} onValueChange={(val) => updateEtapa(etapa.id, "responsavel_id", val)}>
+                    <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                    <SelectContent>
+                      {profiles.map((p: any) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <div className="flex items-center gap-2">
+                            <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
+                            <span>{p.nome}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground">Status</label>
+                  <Select value={etapa.status} onValueChange={(val) => updateEtapa(etapa.id, "status", val)}>
+                    <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteEtapa(etapa.id)}>
+                  <Trash2 className="h-4 w-4 mr-1" /> Excluir
+                </Button>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+    </div>
+  );
+}
 
 export default function ProjetoDetalhe() {
   const { id } = useParams();
@@ -229,6 +380,28 @@ export default function ProjetoDetalhe() {
     toast.success("Etapa excluída");
   };
 
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = etapas.findIndex((e) => e.id === active.id);
+    const newIndex = etapas.findIndex((e) => e.id === over.id);
+    const reordered = arrayMove(etapas, oldIndex, newIndex);
+    setEtapas(reordered);
+
+    // Persist new order
+    await Promise.all(
+      reordered.map((e, i) =>
+        supabase.from("etapas_projeto").update({ ordem: i } as any).eq("id", e.id)
+      )
+    );
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
 
   const addComentario = async () => {
     if (!novoComentario.trim() || !user) return;
@@ -401,96 +574,22 @@ export default function ProjetoDetalhe() {
           {etapas.length === 0 && etapaSuggestions.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">Nenhuma etapa cadastrada</p>
           ) : (
-            etapas.map((etapa, i) => {
-              const responsavelNome = profiles.find((p) => p.id === etapa.responsavel_id)?.nome;
-              return (
-                <Collapsible
-                  key={etapa.id}
-                  open={expandedEtapa === etapa.id}
-                  onOpenChange={(open) => setExpandedEtapa(open ? etapa.id : null)}
-                >
-                  <div className="rounded-lg border bg-card overflow-hidden">
-                    <CollapsibleTrigger asChild>
-                      <button className="flex items-center gap-3 p-3 w-full text-left hover:bg-muted/50 transition-colors">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${etapa.status === "concluido" ? "bg-primary text-primary-foreground" : etapa.status === "atrasado" ? "bg-destructive text-destructive-foreground" : "bg-muted text-muted-foreground"}`}>
-                          {etapa.status === "concluido" ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className={`text-sm font-medium ${etapa.status === "concluido" ? "line-through text-muted-foreground" : ""}`}>
-                            {etapa.nome}
-                          </span>
-                          <div className="flex items-center gap-3 mt-0.5">
-                            {responsavelNome && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1"><User className="h-3 w-3" />{responsavelNome}</span>
-                            )}
-                            {etapa.data_fim && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(etapa.data_fim), "dd/MM/yyyy")}</span>
-                            )}
-                          </div>
-                        </div>
-                        <Badge variant={etapa.status === "atrasado" ? "destructive" : etapa.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
-                          {STATUS_LABELS[etapa.status]}
-                        </Badge>
-                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${expandedEtapa === etapa.id ? "rotate-180" : ""}`} />
-                      </button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="px-3 pb-3 pt-1 border-t space-y-3">
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Descrição</label>
-                          <Textarea
-                            defaultValue={etapa.descricao || ""}
-                            placeholder="Adicionar descrição..."
-                            className="min-h-[60px]"
-                            onBlur={(e) => { if (e.target.value !== (etapa.descricao || "")) updateEtapa(etapa.id, "descricao", e.target.value); }}
-                          />
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Data Início</label>
-                            <Input type="date" defaultValue={etapa.data_inicio || ""} onBlur={(e) => { if (e.target.value !== (etapa.data_inicio || "")) updateEtapa(etapa.id, "data_inicio", e.target.value); }} />
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Data Fim</label>
-                            <Input type="date" defaultValue={etapa.data_fim || ""} onBlur={(e) => { if (e.target.value !== (etapa.data_fim || "")) updateEtapa(etapa.id, "data_fim", e.target.value); }} />
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
-                            <Select value={etapa.responsavel_id || ""} onValueChange={(val) => updateEtapa(etapa.id, "responsavel_id", val)}>
-                              <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                              <SelectContent>
-                                {profiles.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>
-                                    <div className="flex items-center gap-2">
-                                      <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
-                                      <span>{p.nome}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <label className="text-xs text-muted-foreground">Status</label>
-                            <Select value={etapa.status} onValueChange={(val) => updateEtapa(etapa.id, "status", val)}>
-                              <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteEtapa(etapa.id)}>
-                            <Trash2 className="h-4 w-4 mr-1" /> Excluir
-                          </Button>
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </div>
-                </Collapsible>
-              );
-            })
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={etapas.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                {etapas.map((etapa, i) => (
+                  <SortableEtapaItem
+                    key={etapa.id}
+                    etapa={etapa}
+                    index={i}
+                    profiles={profiles}
+                    expandedEtapa={expandedEtapa}
+                    setExpandedEtapa={setExpandedEtapa}
+                    updateEtapa={updateEtapa}
+                    deleteEtapa={deleteEtapa}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           )}
         </CardContent>
       </Card>
