@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import KPIs from "./pages/KPIs";
+import KPIDetalhe from "./pages/KPIDetalhe";
 import Projetos from "./pages/Projetos";
 import ProjetoDetalhe from "./pages/ProjetoDetalhe";
 import NovoProjeto from "./pages/NovoProjeto";
@@ -55,6 +57,8 @@ const App = () => (
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/kpis" element={<KPIs />} />
+              <Route path="/kpis/:id" element={<KPIDetalhe />} />
               <Route path="/projetos" element={<Projetos />} />
               <Route path="/projetos/:id" element={<ProjetoDetalhe />} />
               <Route path="/novo-projeto" element={<NovoProjeto />} />
