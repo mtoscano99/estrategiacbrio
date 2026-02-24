@@ -113,7 +113,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">Dashboard Estratégico</h1>
+        <h1 className="text-2xl font-display font-bold text-foreground">Gestão de Projetos CBRio</h1>
         <p className="text-muted-foreground mt-1">Visão geral do quadriênio 2026–2029</p>
       </div>
 
