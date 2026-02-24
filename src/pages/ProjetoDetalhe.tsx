@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import SWOTMatrix from "@/components/projetos/SWOTMatrix";
 
 const STATUS_LABELS: Record<string, string> = {
   nao_iniciado: "Não Iniciado",
@@ -156,6 +157,9 @@ export default function ProjetoDetalhe() {
           <CardContent><p className="text-sm text-muted-foreground whitespace-pre-wrap">{projeto.descricao}</p></CardContent>
         </Card>
       )}
+
+      {/* Análise SWOT */}
+      <SWOTMatrix projetoId={id!} />
 
       {/* Etapas - Gantt simplificado */}
       <Card>

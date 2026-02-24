@@ -582,6 +582,48 @@ export type Database = {
           },
         ]
       }
+      swot_items: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          descricao: string
+          id: string
+          projeto_id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          descricao: string
+          id?: string
+          projeto_id: string
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string
+          id?: string
+          projeto_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "swot_items_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swot_items_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
