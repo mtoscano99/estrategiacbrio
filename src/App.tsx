@@ -13,20 +13,31 @@ import NovoProjeto from "./pages/NovoProjeto";
 import Aprovacoes from "./pages/Aprovacoes";
 import PlanejamentoEstrategico from "./pages/PlanejamentoEstrategico";
 import Relatorios from "./pages/Relatorios";
+import SelecionarPerfil from "./pages/SelecionarPerfil";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, needsRole } = useAuth();
   if (loading) return <div className="flex items-center justify-center h-screen text-muted-foreground">Carregando...</div>;
   if (!session) return <Navigate to="/login" replace />;
+  if (needsRole) return <Navigate to="/selecionar-perfil" replace />;
+  return <>{children}</>;
+}
+
+function RoleRoute({ children }: { children: React.ReactNode }) {
+  const { session, loading, needsRole } = useAuth();
+  if (loading) return <div className="flex items-center justify-center h-screen text-muted-foreground">Carregando...</div>;
+  if (!session) return <Navigate to="/login" replace />;
+  if (!needsRole) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, needsRole } = useAuth();
   if (loading) return <div className="flex items-center justify-center h-screen text-muted-foreground">Carregando...</div>;
+  if (session && needsRole) return <Navigate to="/selecionar-perfil" replace />;
   if (session) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
@@ -40,6 +51,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/selecionar-perfil" element={<RoleRoute><SelecionarPerfil /></RoleRoute>} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<Dashboard />} />

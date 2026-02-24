@@ -17,8 +17,10 @@ interface AuthContextType {
   profile: Profile | null;
   role: UserRole;
   loading: boolean;
+  needsRole: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshRole: () => Promise<void>;
   isCoordination: boolean;
 }
 
@@ -32,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
+  const [roleChecked, setRoleChecked] = useState(false);
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
@@ -48,7 +51,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .select("role")
       .eq("user_id", userId)
       .single();
-    if (data) setRole(data.role as UserRole);
+    if (data) {
+      setRole(data.role as UserRole);
+    } else {
+      setRole(null);
+    }
+    setRoleChecked(true);
+  };
+
+  const refreshRole = async () => {
+    if (user) {
+      await fetchRole(user.id);
+    }
   };
 
   useEffect(() => {
@@ -64,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           setProfile(null);
           setRole(null);
+          setRoleChecked(false);
         }
         setLoading(false);
       }
@@ -75,6 +90,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         fetchProfile(session.user.id);
         fetchRole(session.user.id);
+      } else {
+        setRoleChecked(true);
       }
       setLoading(false);
     });
@@ -91,6 +108,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
+  const needsRole = !!session && roleChecked && !role;
+
   return (
     <AuthContext.Provider
       value={{
@@ -99,8 +118,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         profile,
         role,
         loading,
+        needsRole,
         signIn,
         signOut,
+        refreshRole,
         isCoordination: role === "coordenacao",
       }}
     >
