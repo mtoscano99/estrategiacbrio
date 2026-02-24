@@ -440,6 +440,7 @@ export type Database = {
       projetos: {
         Row: {
           area_id: string | null
+          centro_custo: string | null
           created_at: string
           data_fim: string | null
           data_inicio: string | null
@@ -456,6 +457,7 @@ export type Database = {
         }
         Insert: {
           area_id?: string | null
+          centro_custo?: string | null
           created_at?: string
           data_fim?: string | null
           data_inicio?: string | null
@@ -472,6 +474,7 @@ export type Database = {
         }
         Update: {
           area_id?: string | null
+          centro_custo?: string | null
           created_at?: string
           data_fim?: string | null
           data_inicio?: string | null

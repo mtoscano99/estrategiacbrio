@@ -292,6 +292,9 @@ export default function ProjetoDetalhe() {
                 <p className="text-sm text-muted-foreground">Orçamento</p>
                 <p className="text-lg font-bold">{orcamento.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
                 <p className="text-xs text-muted-foreground">Gasto: {gasto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                {(projeto as any).centro_custo && (
+                  <p className="text-xs text-muted-foreground mt-1">CC: {(projeto as any).centro_custo}</p>
+                )}
               </div>
             </div>
           </CardContent>
