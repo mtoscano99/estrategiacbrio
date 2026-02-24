@@ -1,0 +1,1 @@
+ALTER TABLE public.etapas_projeto ADD COLUMN responsavel_id uuid;
