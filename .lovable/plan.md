@@ -1,78 +1,77 @@
 
 
-# Matriz SWOT por Projeto
+# Reestruturar o Sistema e Criar Projetos a partir do Documento
 
 ## Resumo
 
-Adicionar a funcionalidade de criar e gerenciar uma Matriz SWOT (Forcas, Fraquezas, Oportunidades e Ameacas) para cada projeto do sistema. Cada projeto podera ter sua propria analise SWOT, com itens organizados nos 4 quadrantes classicos.
+O sistema ja possui toda a infraestrutura de gestao de projetos (tabela `projetos`, etapas, SWOT, KPIs, comentarios). O que falta e **popular o banco com os projetos reais** extraidos do planejamento estrategico da CBRio, e fazer pequenos ajustes no Dashboard para refletir melhor um sistema de gestao de projetos.
 
-## O que sera construido
+Cada "alvo" do planejamento estrategico sera convertido em um projeto concreto, vinculado ao seu objetivo estrategico e a area estrategica mais adequada.
 
-### 1. Nova tabela `swot_items`
+## Projetos que serao criados (20 projetos)
 
-Armazena os itens de cada quadrante SWOT vinculados a um projeto:
+### Ano 2026 -- Unidade (6 projetos)
 
-| Coluna     | Tipo      | Descricao                                        |
-|------------|-----------|--------------------------------------------------|
-| id         | uuid (PK) | Identificador unico                              |
-| projeto_id | uuid (FK) | Referencia ao projeto                            |
-| tipo       | text      | 'forca', 'fraqueza', 'oportunidade', 'ameaca'   |
-| descricao  | text      | Texto descritivo do item                         |
-| criado_por | uuid (FK) | Usuario que criou                                |
-| created_at | timestamp | Data de criacao                                  |
+| Projeto | Area | Meta/Indicador |
+|---------|------|----------------|
+| Dimensionamento de Quadro de Pessoal | Recursos Humanos | 100% conclusao |
+| Finalizacao dos Projetos Satelites | Gestao e Operacoes | 100% conclusao |
+| Equilibrio Operacional Financeiro | Financeiro | Deficit max R$ 200.000 |
+| Incremento de Frequencia Presencial (2.300) | Ministerial | Media semanal 2.300 |
+| Relatorio de Licoes Aprendidas 2024-2026 | Gestao e Operacoes | 100% conclusao |
+| Campanha Receita Recorrente Doadores (+30%) | Relacionamento e Captacao | 80% contribuintes |
 
-### 2. Politicas de seguranca (RLS)
+### Ano 2027 -- Reavaliacao (5 projetos)
 
-- Leitura: todos autenticados que tenham acesso ao projeto (mesma area ou coordenacao)
-- Criacao/edicao/exclusao: coordenacao pode tudo; lideres podem gerenciar SWOT de projetos da sua area
+| Projeto | Area | Meta/Indicador |
+|---------|------|----------------|
+| Auditoria de Efetividade | Gestao e Operacoes | 5 relatorios |
+| Pesquisas com Stakeholders | Comunicacao e Marketing | 4 pesquisas |
+| Sustentabilidade CBS1 - Nivel 50% | Financeiro | 50% |
+| Refinamento de Metodologias | Gestao e Operacoes | 100% conclusao |
+| Plano Estrategico 2028-2029 | Gestao e Operacoes | Documento finalizado |
 
-### 3. Componente `SWOTMatrix` na pagina de detalhe do projeto
+### Ano 2028 -- Escalonamento (4 projetos)
 
-Uma visualizacao em grid 2x2 com os 4 quadrantes, cada um com cor distinta:
+| Projeto | Area | Meta/Indicador |
+|---------|------|----------------|
+| Sustentabilidade CBS1 - Nivel 80% | Financeiro | 80% |
+| Obras de Infraestrutura CBS2 | Infraestrutura | Inicio confirmado |
+| Lancamento de 2 Pontos Satelites | Ministerial | 2 pontos |
+| Campanha Doacao Recorrente (35% receita) | Relacionamento e Captacao | 35% |
 
-```text
-+-----------------------------+-----------------------------+
-|  FORCAS (verde)             |  FRAQUEZAS (vermelho)       |
-|  - item 1                  |  - item 1                   |
-|  - item 2                  |  - item 2                   |
-|  [+ Adicionar]              |  [+ Adicionar]              |
-+-----------------------------+-----------------------------+
-|  OPORTUNIDADES (azul)       |  AMEACAS (amarelo)          |
-|  - item 1                  |  - item 1                   |
-|  - item 2                  |  - item 2                   |
-|  [+ Adicionar]              |  [+ Adicionar]              |
-+-----------------------------+-----------------------------+
-```
+### Ano 2029 -- Maturidade (5 projetos)
 
-Cada quadrante permite:
-- Visualizar itens existentes
-- Adicionar novo item (inline, sem modal)
-- Excluir item (botao X ao lado)
+| Projeto | Area | Meta/Indicador |
+|---------|------|----------------|
+| Certificacao de Qualidade de Gestao | Gestao e Operacoes | Score 85%+ |
+| Sustentabilidade CBS2 50% + Reserva 6 Meses | Financeiro | 50% + 6 meses |
+| Lancamento de 3 Programas Ministeriais | Ministerial | 3 programas |
+| Frequencia Presencial Media 3.000 | Ministerial | Media semanal 3.000 |
+| Plano Estrategico 2030-2033 | Gestao e Operacoes | 100% conclusao |
 
-### 4. Integracao com a pagina de detalhe do projeto
+## Ajustes no Dashboard
 
-A Matriz SWOT sera adicionada como uma nova secao (Card) na pagina `/projetos/:id`, entre a descricao e as etapas.
+Remover a mensagem "Nenhum projeto cadastrado" e garantir que os graficos carreguem com os novos dados. Ajustar titulo para "Gestao de Projetos" no cabecalho.
 
 ## Detalhes Tecnicos
 
-### Migracao SQL
+### Insercao de dados (via ferramenta de insert, nao migracao)
 
-Uma unica migracao criando:
-- Tabela `swot_items` com foreign key para `projetos` (CASCADE on delete) e `profiles`
-- RLS com leitura via `user_in_project_area` e coordenacao com acesso total
-- Lideres podem inserir/atualizar/deletar itens de projetos da sua area
-- Indice em `projeto_id` para performance
-
-### Novos arquivos
-
-- `src/components/projetos/SWOTMatrix.tsx` -- componente visual da matriz SWOT 2x2 com formulario inline para adicionar/remover itens
+Serao 20 comandos `INSERT` na tabela `projetos`, cada um com:
+- `nome`: titulo descritivo do projeto
+- `descricao`: descricao do alvo + meta + indicador
+- `area_id`: UUID da area estrategica correspondente
+- `objetivo_id`: UUID do objetivo estrategico do ano
+- `status`: `nao_iniciado` (projetos 2027-2029) ou `em_andamento` (projetos 2026)
+- `data_inicio`: 01/01 do ano correspondente
+- `data_fim`: 31/12 do ano correspondente
+- `orcamento_previsto`: 0 (sera definido depois pela coordenacao)
 
 ### Arquivos modificados
 
-- `src/pages/ProjetoDetalhe.tsx` -- importar e renderizar o componente `SWOTMatrix` passando o `projeto_id`
+- `src/pages/Dashboard.tsx` -- Ajuste no titulo principal de "Dashboard Estrategico" para "Gestao de Projetos CBRio" e garantir que os graficos funcionem com os dados populados
 
-### Bibliotecas utilizadas (ja instaladas)
+### Nenhuma mudanca de schema necessaria
 
-- Componentes shadcn/ui existentes (Card, Input, Button, Badge)
-- Lucide icons (Plus, X, Shield, AlertTriangle, TrendingUp, TrendingDown)
-
+A tabela `projetos` ja possui todas as colunas necessarias. Nao ha necessidade de migracao SQL.
