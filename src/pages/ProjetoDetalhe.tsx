@@ -20,6 +20,8 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import ReactMarkdown from "react-markdown";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import SWOTMatrix from "@/components/projetos/SWOTMatrix";
 import { UserAvatar } from "@/components/UserAvatar";
 import {
@@ -544,7 +546,46 @@ export default function ProjetoDetalhe() {
         </Card>
       </div>
 
-      {/* Description */}
+      {/* Gráfico de Gastos por Etapa */}
+      {(() => {
+        const etapasComGasto = etapas.filter((e) => Number(e.valor_gasto) > 0);
+        const chartData = etapasComGasto.map((e) => ({ nome: e.nome, valor: Number(e.valor_gasto) }));
+        const chartHeight = Math.max(200, etapasComGasto.length * 50);
+        const chartConfig: ChartConfig = {
+          valor: { label: "Valor Gasto", color: "hsl(var(--primary))" },
+        };
+
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Gastos por Etapa</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {chartData.length > 0 ? (
+                <ChartContainer config={chartConfig} className="w-full" style={{ height: chartHeight, aspectRatio: "unset" }}>
+                  <BarChart layout="vertical" data={chartData} margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tickFormatter={(v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", notation: "compact" })}
+                      className="text-xs"
+                    />
+                    <YAxis type="category" dataKey="nome" width={120} tick={{ fontSize: 12 }} />
+                    <Tooltip
+                      formatter={(value: number) => [value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), "Valor Gasto"]}
+                      contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }}
+                    />
+                    <Bar dataKey="valor" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ChartContainer>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhum gasto registrado nas etapas.</p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {projeto.descricao && (
         <Card>
           <CardHeader><CardTitle className="text-lg">Descrição</CardTitle></CardHeader>
