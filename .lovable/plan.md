@@ -1,112 +1,78 @@
 
 
-# Fluxo Completo de KPIs -- Criacao, Alimentacao e Acompanhamento
+# Matriz SWOT por Projeto
 
 ## Resumo
 
-Criar um sistema completo de gestao de KPIs que permita cadastrar indicadores, registrar medicoes periodicas e visualizar o progresso ao longo do tempo. Isso vai alem dos "alvos" ja existentes no planejamento estrategico, oferecendo um painel dedicado com graficos de evolucao e formularios de alimentacao.
+Adicionar a funcionalidade de criar e gerenciar uma Matriz SWOT (Forcas, Fraquezas, Oportunidades e Ameacas) para cada projeto do sistema. Cada projeto podera ter sua propria analise SWOT, com itens organizados nos 4 quadrantes classicos.
 
 ## O que sera construido
 
-### 1. Nova tabela `kpis` (indicadores)
-Armazena a definicao de cada KPI:
+### 1. Nova tabela `swot_items`
 
-| Coluna         | Tipo      | Descricao                                      |
-|----------------|-----------|-------------------------------------------------|
-| id             | uuid (PK) | Identificador unico                             |
-| nome           | text      | Nome do KPI (ex: "Frequencia Presencial")       |
-| descricao      | text      | Descricao detalhada                             |
-| unidade        | text      | Unidade de medida (%, R$, unidades, pessoas)    |
-| meta           | numeric   | Valor-alvo a ser alcancado                      |
-| area_id        | uuid (FK) | Area estrategica vinculada (opcional)            |
-| objetivo_id    | uuid (FK) | Objetivo estrategico vinculado (opcional)        |
-| periodicidade  | text      | mensal, trimestral, semestral, anual            |
-| criado_por     | uuid (FK) | Usuario que criou                                |
-| created_at     | timestamp | Data de criacao                                  |
-| updated_at     | timestamp | Data de atualizacao                              |
+Armazena os itens de cada quadrante SWOT vinculados a um projeto:
 
-### 2. Nova tabela `kpi_medicoes` (registros de medicao)
-Armazena cada medicao/alimentacao do KPI:
+| Coluna     | Tipo      | Descricao                                        |
+|------------|-----------|--------------------------------------------------|
+| id         | uuid (PK) | Identificador unico                              |
+| projeto_id | uuid (FK) | Referencia ao projeto                            |
+| tipo       | text      | 'forca', 'fraqueza', 'oportunidade', 'ameaca'   |
+| descricao  | text      | Texto descritivo do item                         |
+| criado_por | uuid (FK) | Usuario que criou                                |
+| created_at | timestamp | Data de criacao                                  |
 
-| Coluna         | Tipo      | Descricao                                      |
-|----------------|-----------|-------------------------------------------------|
-| id             | uuid (PK) | Identificador unico                             |
-| kpi_id         | uuid (FK) | Referencia ao KPI                               |
-| valor          | numeric   | Valor medido                                    |
-| data_referencia| date      | Data/periodo da medicao                         |
-| observacao     | text      | Comentario opcional sobre a medicao             |
-| registrado_por | uuid (FK) | Usuario que registrou                            |
-| created_at     | timestamp | Data do registro                                 |
+### 2. Politicas de seguranca (RLS)
 
-### 3. Politicas de seguranca (RLS)
+- Leitura: todos autenticados que tenham acesso ao projeto (mesma area ou coordenacao)
+- Criacao/edicao/exclusao: coordenacao pode tudo; lideres podem gerenciar SWOT de projetos da sua area
 
-- **kpis**: Coordenacao pode criar/editar/excluir; todos autenticados podem ler
-- **kpi_medicoes**: Coordenacao pode tudo; lideres podem inserir e ler medicoes da sua area; todos autenticados podem ler
+### 3. Componente `SWOTMatrix` na pagina de detalhe do projeto
 
-### 4. Nova pagina `/kpis` -- Painel de KPIs
+Uma visualizacao em grid 2x2 com os 4 quadrantes, cada um com cor distinta:
 
-Tela principal com:
-- **Cards resumo** no topo: total de KPIs, KPIs no alvo, KPIs abaixo da meta, KPIs sem medicao recente
-- **Lista/grid de KPIs** com barra de progresso visual (valor atual vs meta), filtros por area e periodicidade
-- **Mini-grafico sparkline** em cada card mostrando tendencia das ultimas medicoes
+```text
++-----------------------------+-----------------------------+
+|  FORCAS (verde)             |  FRAQUEZAS (vermelho)       |
+|  - item 1                  |  - item 1                   |
+|  - item 2                  |  - item 2                   |
+|  [+ Adicionar]              |  [+ Adicionar]              |
++-----------------------------+-----------------------------+
+|  OPORTUNIDADES (azul)       |  AMEACAS (amarelo)          |
+|  - item 1                  |  - item 1                   |
+|  - item 2                  |  - item 2                   |
+|  [+ Adicionar]              |  [+ Adicionar]              |
++-----------------------------+-----------------------------+
+```
 
-### 5. Dialog/Modal para criar novo KPI
+Cada quadrante permite:
+- Visualizar itens existentes
+- Adicionar novo item (inline, sem modal)
+- Excluir item (botao X ao lado)
 
-Formulario com campos:
-- Nome, descricao, unidade de medida
-- Meta (valor numerico alvo)
-- Area estrategica (select das areas existentes)
-- Objetivo estrategico (select filtrado por area)
-- Periodicidade (mensal/trimestral/semestral/anual)
+### 4. Integracao com a pagina de detalhe do projeto
 
-Disponivel apenas para coordenacao.
-
-### 6. Dialog/Modal para registrar medicao
-
-Formulario simples:
-- KPI (pre-selecionado se aberto de um KPI especifico)
-- Valor medido
-- Data de referencia
-- Observacao (opcional)
-
-Disponivel para coordenacao e lideres de area (para KPIs da sua area).
-
-### 7. Pagina de detalhe do KPI `/kpis/:id`
-
-- Informacoes do KPI (nome, descricao, meta, area, objetivo)
-- Grafico de linha mostrando evolucao das medicoes ao longo do tempo com linha de meta
-- Tabela com historico completo de medicoes
-- Botao para adicionar nova medicao
-- Botao para editar o KPI (somente coordenacao)
-
-### 8. Integracao com sidebar e Dashboard
-
-- Adicionar item "KPIs" na sidebar (icone BarChart3)
-- Adicionar secao no Dashboard com os 4-5 KPIs mais relevantes e seus status
+A Matriz SWOT sera adicionada como uma nova secao (Card) na pagina `/projetos/:id`, entre a descricao e as etapas.
 
 ## Detalhes Tecnicos
 
 ### Migracao SQL
+
 Uma unica migracao criando:
-- Tabela `kpis` com foreign keys para `areas_estrategicas`, `objetivos_estrategicos` e `profiles`
-- Tabela `kpi_medicoes` com foreign keys para `kpis` e `profiles`
-- Politicas RLS permissivas para leitura autenticada e restritivas para escrita por perfil
-- Trigger `update_updated_at_column` na tabela `kpis`
+- Tabela `swot_items` com foreign key para `projetos` (CASCADE on delete) e `profiles`
+- RLS com leitura via `user_in_project_area` e coordenacao com acesso total
+- Lideres podem inserir/atualizar/deletar itens de projetos da sua area
+- Indice em `projeto_id` para performance
 
 ### Novos arquivos
-- `src/pages/KPIs.tsx` -- listagem com cards, filtros e resumo
-- `src/pages/KPIDetalhe.tsx` -- pagina de detalhe com grafico de evolucao
-- `src/components/kpis/NovoKPIDialog.tsx` -- formulario de criacao
-- `src/components/kpis/NovaMedicaoDialog.tsx` -- formulario de alimentacao
-- `src/components/kpis/KPICard.tsx` -- card individual com progresso
+
+- `src/components/projetos/SWOTMatrix.tsx` -- componente visual da matriz SWOT 2x2 com formulario inline para adicionar/remover itens
 
 ### Arquivos modificados
-- `src/App.tsx` -- novas rotas `/kpis` e `/kpis/:id`
-- `src/components/layout/AppSidebar.tsx` -- novo item "KPIs" no menu
-- `src/pages/Dashboard.tsx` -- secao com resumo dos KPIs principais
+
+- `src/pages/ProjetoDetalhe.tsx` -- importar e renderizar o componente `SWOTMatrix` passando o `projeto_id`
 
 ### Bibliotecas utilizadas (ja instaladas)
-- `recharts` para graficos de evolucao
-- `react-hook-form` + `zod` para validacao dos formularios
-- Componentes shadcn/ui existentes (Dialog, Card, Select, Input, Badge, Progress)
+
+- Componentes shadcn/ui existentes (Card, Input, Button, Badge)
+- Lucide icons (Plus, X, Shield, AlertTriangle, TrendingUp, TrendingDown)
 
