@@ -31,6 +31,7 @@ export default function NovoProjeto() {
     estimativa_prazo: "",
     estimativa_orcamento: "",
     entregas_esperadas: "",
+    centro_custo: "",
   });
 
   useEffect(() => {
@@ -61,7 +62,8 @@ export default function NovoProjeto() {
           data_inicio: form.data_inicio || null,
           data_fim: form.data_fim || null,
           orcamento_previsto: form.estimativa_orcamento ? Number(form.estimativa_orcamento) : 0,
-        });
+          centro_custo: form.centro_custo || null,
+        } as any);
         if (error) throw error;
         toast.success("Projeto criado com sucesso!");
         navigate("/projetos");
@@ -193,9 +195,15 @@ export default function NovoProjeto() {
             {/* Seção 3 - Financeiro */}
             <div>
               <h2 className="text-lg font-semibold mb-4">Financeiro</h2>
-              <div className="space-y-2">
-                <Label htmlFor="orcamento">Orçamento Previsto (R$)</Label>
-                <Input id="orcamento" type="number" value={form.estimativa_orcamento} onChange={(e) => update("estimativa_orcamento", e.target.value)} placeholder="0,00" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="orcamento">Orçamento Previsto (R$)</Label>
+                  <Input id="orcamento" type="number" value={form.estimativa_orcamento} onChange={(e) => update("estimativa_orcamento", e.target.value)} placeholder="0,00" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="centro_custo">Centro de Custo</Label>
+                  <Input id="centro_custo" value={form.centro_custo} onChange={(e) => update("centro_custo", e.target.value)} placeholder="Ex: CC-001" />
+                </div>
               </div>
             </div>
 
