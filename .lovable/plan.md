@@ -1,61 +1,83 @@
 
 
-## Relatorio Consolidado do Portfolio com Exportacao CSV
+## Upload de Anexos e Documentos nos Projetos
 
-### O que sera feito
-Expandir a pagina de Relatorios com uma nova aba "Portfolio" que exibe um relatorio consolidado de todos os projetos, com resumo financeiro por area estrategica e exportacao para CSV.
+### Resumo
+Adicionar uma secao de anexos na pagina de detalhe do projeto, permitindo upload, listagem e exclusao de documentos (PDF, imagens, planilhas, etc.) usando o storage do backend.
 
-### Estrutura da pagina
+### Alteracoes necessarias
 
-A pagina de Relatorios passara a ter duas abas usando o componente Tabs:
-1. **Por Projeto** (aba atual, sem alteracoes)
-2. **Portfolio** (nova aba com relatorio consolidado)
+#### 1. Backend - Storage Bucket e Tabela de Metadados
 
-### Conteudo da aba Portfolio
+**Criar bucket `project-attachments`** (publico para facilitar download):
 
-**Cards de resumo no topo:**
-- Total de projetos
-- Orcamento total (soma de orcamento_previsto)
-- Total gasto (soma de valor_gasto)
-- Saldo total (orcamento - gasto)
+```sql
+INSERT INTO storage.buckets (id, name, public) VALUES ('project-attachments', 'project-attachments', true);
+```
 
-**Tabela: Resumo Financeiro por Area Estrategica**
-- Colunas: Area | Qtd Projetos | Orcamento | Gasto | Saldo | % Consumo
-- Agrupamento dos projetos por area_id, com totalizacao por area
-- Linha de total geral no rodape
+**Politicas RLS no bucket** para controlar acesso:
+- SELECT: usuarios autenticados podem ler
+- INSERT: coordenacao e lideres da area do projeto podem inserir
+- DELETE: coordenacao e o proprio uploader podem excluir
 
-**Tabela: Todos os Projetos**
-- Colunas: Projeto | Area | Responsavel | Status | Orcamento | Gasto | Saldo
-- Ordenado por area e nome
-- Badges de status com cores
+**Criar tabela `anexos_projeto`** para metadados:
 
-**Botao "Exportar CSV"**
-- Gera um arquivo CSV com todos os projetos (mesmas colunas da tabela)
-- Inclui linha de totais no final
-- Nome do arquivo: `portfolio_YYYY-MM-DD.csv`
-- Usa `Blob` + `URL.createObjectURL` para download no navegador (sem backend)
+```text
+anexos_projeto
+- id (uuid, PK)
+- projeto_id (uuid, FK -> projetos.id, NOT NULL)
+- nome_arquivo (text, NOT NULL)
+- tamanho (bigint)
+- tipo_mime (text)
+- storage_path (text, NOT NULL)
+- enviado_por (uuid, NOT NULL)
+- created_at (timestamptz, default now())
+```
 
-### Detalhes Tecnicos
+**Politicas RLS na tabela:**
+- SELECT: coordenacao ve tudo; lideres veem anexos de projetos da sua area
+- INSERT: usuarios autenticados podem inserir (com `enviado_por = auth.uid()`)
+- DELETE: coordenacao pode excluir qualquer um; usuario pode excluir os proprios
 
-**Arquivo: `src/pages/Relatorios.tsx`**
+**ON DELETE CASCADE** no FK de `projeto_id` para limpar anexos ao excluir projeto.
 
-1. Adicionar imports: `Tabs, TabsContent, TabsList, TabsTrigger` de `@/components/ui/tabs`, `Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter` de `@/components/ui/table`, `Download` de `lucide-react`
+#### 2. Frontend - Componente de Anexos
 
-2. Novo state e query para portfolio:
-   - `activeTab` state para controlar aba
-   - Ao entrar na aba Portfolio, carregar todos os projetos com joins: `projetos.select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome)")`
-   - Carregar tambem `areas_estrategicas` para listagem completa
+**Novo componente: `src/components/projetos/AnexosProjeto.tsx`**
 
-3. Funcao `exportCSV`:
-   - Monta string CSV com headers e dados dos projetos
-   - Inclui BOM UTF-8 para acentos no Excel
-   - Cria Blob, gera URL temporaria e dispara download via link programatico
+Recebe `projetoId` como prop e renderiza:
 
-4. Computacoes derivadas (useMemo ou inline):
-   - `resumoPorArea`: agrupar projetos por area, somando orcamento/gasto
-   - `totais`: somar todos orcamentos e gastos
+- Botao "Adicionar Anexo" que abre um input file (aceita multiplos arquivos)
+- Lista de anexos existentes em formato de tabela compacta:
+  - Icone baseado no tipo (PDF, imagem, planilha, generico)
+  - Nome do arquivo (clicavel para download)
+  - Tamanho formatado (KB/MB)
+  - Quem enviou
+  - Data de envio
+  - Botao de excluir (visivel apenas para o uploader ou coordenacao)
 
-5. Layout: envolver todo o conteudo atual em `<Tabs>`, mover o conteudo existente para `<TabsContent value="projeto">` e adicionar `<TabsContent value="portfolio">` com o novo conteudo
+**Logica de upload:**
+- Faz upload para `project-attachments/{projeto_id}/{uuid}-{filename}`
+- Insere registro na tabela `anexos_projeto`
+- Limite de 20MB por arquivo (validacao client-side)
+- Feedback via toast de sucesso/erro
 
-**Nenhuma alteracao de banco de dados necessaria** - todos os dados ja existem nas tabelas `projetos` e `areas_estrategicas`.
+**Logica de download:**
+- Gera URL publica do storage para download direto
+
+**Logica de exclusao:**
+- Remove o arquivo do storage
+- Remove o registro da tabela `anexos_projeto`
+
+#### 3. Integracao na pagina ProjetoDetalhe
+
+Adicionar o componente `<AnexosProjeto>` como um novo Card entre a descricao e a analise SWOT (ou apos os comentarios), com titulo "Anexos e Documentos" e icone `Paperclip`.
+
+### Arquivos alterados/criados
+
+| Arquivo | Acao |
+|---|---|
+| Migracao SQL | Criar bucket, tabela `anexos_projeto`, politicas RLS |
+| `src/components/projetos/AnexosProjeto.tsx` | Novo componente |
+| `src/pages/ProjetoDetalhe.tsx` | Importar e renderizar `AnexosProjeto` |
 
