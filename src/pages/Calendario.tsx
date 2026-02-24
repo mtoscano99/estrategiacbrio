@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   startOfMonth,
@@ -29,6 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import NovaEtapaCalendarioDialog from "@/components/calendario/NovaEtapaCalendarioDialog";
 
 interface CalendarEvent {
   id: string;
@@ -52,6 +53,8 @@ export default function Calendario() {
   const [areas, setAreas] = useState<{ id: string; nome: string }[]>([]);
   const [filterArea, setFilterArea] = useState("all");
   const [filterTipo, setFilterTipo] = useState<"all" | "projeto" | "etapa">("all");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createDate, setCreateDate] = useState<Date | null>(null);
   const { user, isCoordination } = useAuth();
   const navigate = useNavigate();
 
@@ -69,68 +72,67 @@ export default function Calendario() {
     });
   }, []);
 
-  useEffect(() => {
+  const fetchEvents = useCallback(async () => {
     if (!user) return;
-    const fetchEvents = async () => {
-      setLoading(true);
-      const allEvents: CalendarEvent[] = [];
+    setLoading(true);
+    const allEvents: CalendarEvent[] = [];
 
-      // Fetch projetos
-      let projQuery = supabase
-        .from("projetos")
-        .select("id, nome, data_inicio, data_fim, status, area_id");
-      if (!isCoordination) {
-        projQuery = projQuery.eq("responsavel_id", user.id);
-      }
-      const { data: projetos } = await projQuery;
-      if (projetos) {
-        for (const p of projetos) {
-          if (p.data_inicio || p.data_fim) {
-            allEvents.push({
-              id: `proj-${p.id}`,
-              projetoId: p.id,
-              nome: p.nome,
-              tipo: "projeto",
-              dataInicio: p.data_inicio,
-              dataFim: p.data_fim,
-              status: p.status,
-              areaId: p.area_id,
-            });
-          }
+    let projQuery = supabase
+      .from("projetos")
+      .select("id, nome, data_inicio, data_fim, status, area_id");
+    if (!isCoordination) {
+      projQuery = projQuery.eq("responsavel_id", user.id);
+    }
+    const { data: projetos } = await projQuery;
+    if (projetos) {
+      for (const p of projetos) {
+        if (p.data_inicio || p.data_fim) {
+          allEvents.push({
+            id: `proj-${p.id}`,
+            projetoId: p.id,
+            nome: p.nome,
+            tipo: "projeto",
+            dataInicio: p.data_inicio,
+            dataFim: p.data_fim,
+            status: p.status,
+            areaId: p.area_id,
+          });
         }
       }
+    }
 
-      // Fetch etapas
-      let etapaQuery = supabase
-        .from("etapas_projeto")
-        .select("id, nome, data_inicio, data_fim, status, projeto_id, projetos(nome, area_id)");
-      if (!isCoordination) {
-        etapaQuery = etapaQuery.eq("responsavel_id", user.id);
-      }
-      const { data: etapas } = await etapaQuery;
-      if (etapas) {
-        for (const e of etapas) {
-          if (e.data_inicio || e.data_fim) {
-            allEvents.push({
-              id: `etapa-${e.id}`,
-              projetoId: e.projeto_id,
-              nome: e.nome,
-              tipo: "etapa",
-              dataInicio: e.data_inicio,
-              dataFim: e.data_fim,
-              status: e.status,
-              projetoNome: (e as any).projetos?.nome,
-              areaId: (e as any).projetos?.area_id ?? null,
-            });
-          }
+    let etapaQuery = supabase
+      .from("etapas_projeto")
+      .select("id, nome, data_inicio, data_fim, status, projeto_id, projetos(nome, area_id)");
+    if (!isCoordination) {
+      etapaQuery = etapaQuery.eq("responsavel_id", user.id);
+    }
+    const { data: etapas } = await etapaQuery;
+    if (etapas) {
+      for (const e of etapas) {
+        if (e.data_inicio || e.data_fim) {
+          allEvents.push({
+            id: `etapa-${e.id}`,
+            projetoId: e.projeto_id,
+            nome: e.nome,
+            tipo: "etapa",
+            dataInicio: e.data_inicio,
+            dataFim: e.data_fim,
+            status: e.status,
+            projetoNome: (e as any).projetos?.nome,
+            areaId: (e as any).projetos?.area_id ?? null,
+          });
         }
       }
+    }
 
-      setEvents(allEvents);
-      setLoading(false);
-    };
+    setEvents(allEvents);
+    setLoading(false);
+  }, [user, isCoordination]);
+
+  useEffect(() => {
     fetchEvents();
-  }, [user, isCoordination, currentDate]);
+  }, [fetchEvents]);
 
   const filteredEvents = useMemo(() => {
     return events.filter((ev) => {
@@ -282,10 +284,13 @@ export default function Calendario() {
                       isSelected && "ring-2 ring-inset ring-primary"
                     )}
                     onClick={() =>
-                      setSelectedDay(
-                        isSelected ? null : day
-                      )
+                      setSelectedDay(isSelected ? null : day)
                     }
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setCreateDate(day);
+                      setCreateDialogOpen(true);
+                    }}
                   >
                     <div
                       className={cn(
@@ -399,6 +404,13 @@ export default function Calendario() {
           )}
         </>
       )}
+
+      <NovaEtapaCalendarioDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        selectedDate={createDate}
+        onCreated={fetchEvents}
+      />
     </div>
   );
 }
