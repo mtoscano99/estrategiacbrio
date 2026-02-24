@@ -15,6 +15,7 @@ import NovoProjeto from "./pages/NovoProjeto";
 import Aprovacoes from "./pages/Aprovacoes";
 import PlanejamentoEstrategico from "./pages/PlanejamentoEstrategico";
 import Relatorios from "./pages/Relatorios";
+import MeuPerfil from "./pages/MeuPerfil";
 import SelecionarPerfil from "./pages/SelecionarPerfil";
 import NotFound from "./pages/NotFound";
 
@@ -65,6 +66,7 @@ const App = () => (
               <Route path="/aprovacoes" element={<Aprovacoes />} />
               <Route path="/planejamento" element={<PlanejamentoEstrategico />} />
               <Route path="/relatorios" element={<Relatorios />} />
+              <Route path="/perfil" element={<MeuPerfil />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

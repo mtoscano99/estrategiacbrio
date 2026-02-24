@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { FilePlus } from "lucide-react";
+import { UserAvatar } from "@/components/UserAvatar";
 
 export default function NovoProjeto() {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ export default function NovoProjeto() {
     Promise.all([
       supabase.from("areas_estrategicas").select("id, nome"),
       supabase.from("objetivos_estrategicos").select("id, titulo, ano"),
-      supabase.from("profiles").select("id, nome"),
+      supabase.from("profiles").select("id, nome, avatar_url"),
     ]).then(([areasRes, objRes, profilesRes]) => {
       if (areasRes.data) setAreas(areasRes.data);
       if (objRes.data) setObjetivos(objRes.data);
@@ -156,7 +157,12 @@ export default function NovoProjeto() {
                         <SelectTrigger><SelectValue placeholder="Selecione o responsável" /></SelectTrigger>
                         <SelectContent>
                           {profiles.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                            <SelectItem key={p.id} value={p.id}>
+                              <div className="flex items-center gap-2">
+                                <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
+                                <span>{p.nome}</span>
+                              </div>
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

@@ -12,6 +12,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { UserAvatar } from "@/components/UserAvatar";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -80,11 +81,20 @@ export function AppSidebar() {
 
       {/* User info & Logout */}
       <div className="border-t border-sidebar-border p-3">
-        {!collapsed && profile && (
-          <div className="mb-2 px-2">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">{profile.nome}</p>
-            <p className="text-xs text-sidebar-foreground/50 truncate">{profile.email}</p>
-          </div>
+        {profile && (
+          <NavLink
+            to="/perfil"
+            className="flex items-center gap-3 mb-2 px-2 py-1.5 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer"
+            title={collapsed ? profile.nome : undefined}
+          >
+            <UserAvatar avatarUrl={profile.avatar_url} nome={profile.nome} className="h-8 w-8 shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-sidebar-foreground truncate">{profile.nome}</p>
+                <p className="text-xs text-sidebar-foreground/50 truncate">{profile.email}</p>
+              </div>
+            )}
+          </NavLink>
         )}
         <button
           onClick={signOut}
