@@ -17,9 +17,10 @@ import {
   isToday,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
@@ -34,6 +35,7 @@ interface CalendarEvent {
   projetoId: string;
   nome: string;
   tipo: "projeto" | "etapa";
+  areaId: string | null;
   dataInicio: string | null;
   dataFim: string | null;
   status: string;
@@ -47,6 +49,9 @@ export default function Calendario() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
+  const [areas, setAreas] = useState<{ id: string; nome: string }[]>([]);
+  const [filterArea, setFilterArea] = useState("all");
+  const [filterTipo, setFilterTipo] = useState<"all" | "projeto" | "etapa">("all");
   const { user, isCoordination } = useAuth();
   const navigate = useNavigate();
 
@@ -59,6 +64,12 @@ export default function Calendario() {
   }, [currentDate]);
 
   useEffect(() => {
+    supabase.from("areas_estrategicas").select("id, nome").then(({ data }) => {
+      if (data) setAreas(data);
+    });
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
     const fetchEvents = async () => {
       setLoading(true);
@@ -67,7 +78,7 @@ export default function Calendario() {
       // Fetch projetos
       let projQuery = supabase
         .from("projetos")
-        .select("id, nome, data_inicio, data_fim, status");
+        .select("id, nome, data_inicio, data_fim, status, area_id");
       if (!isCoordination) {
         projQuery = projQuery.eq("responsavel_id", user.id);
       }
@@ -83,6 +94,7 @@ export default function Calendario() {
               dataInicio: p.data_inicio,
               dataFim: p.data_fim,
               status: p.status,
+              areaId: p.area_id,
             });
           }
         }
@@ -91,7 +103,7 @@ export default function Calendario() {
       // Fetch etapas
       let etapaQuery = supabase
         .from("etapas_projeto")
-        .select("id, nome, data_inicio, data_fim, status, projeto_id, projetos(nome)");
+        .select("id, nome, data_inicio, data_fim, status, projeto_id, projetos(nome, area_id)");
       if (!isCoordination) {
         etapaQuery = etapaQuery.eq("responsavel_id", user.id);
       }
@@ -108,6 +120,7 @@ export default function Calendario() {
               dataFim: e.data_fim,
               status: e.status,
               projetoNome: (e as any).projetos?.nome,
+              areaId: (e as any).projetos?.area_id ?? null,
             });
           }
         }
@@ -119,8 +132,16 @@ export default function Calendario() {
     fetchEvents();
   }, [user, isCoordination, currentDate]);
 
-  const getEventsForDay = (day: Date) => {
+  const filteredEvents = useMemo(() => {
     return events.filter((ev) => {
+      if (filterTipo !== "all" && ev.tipo !== filterTipo) return false;
+      if (filterArea !== "all" && ev.areaId !== filterArea) return false;
+      return true;
+    });
+  }, [events, filterTipo, filterArea]);
+
+  const getEventsForDay = (day: Date) => {
+    return filteredEvents.filter((ev) => {
       const start = ev.dataInicio ? parseISO(ev.dataInicio) : null;
       const end = ev.dataFim ? parseISO(ev.dataFim) : null;
 
@@ -157,7 +178,7 @@ export default function Calendario() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <CalendarDays className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-display font-bold text-foreground">
@@ -190,6 +211,37 @@ export default function Calendario() {
             {format(currentDate, "MMMM yyyy", { locale: ptBR })}
           </h2>
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Filter className="h-4 w-4 text-muted-foreground" />
+        <Select value={filterTipo} onValueChange={(v) => setFilterTipo(v as any)}>
+          <SelectTrigger className="w-[160px] h-9 text-sm">
+            <SelectValue placeholder="Tipo de evento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os tipos</SelectItem>
+            <SelectItem value="projeto">Projetos</SelectItem>
+            <SelectItem value="etapa">Etapas / Marcos</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterArea} onValueChange={setFilterArea}>
+          <SelectTrigger className="w-[200px] h-9 text-sm">
+            <SelectValue placeholder="Área estratégica" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as áreas</SelectItem>
+            {areas.map((a) => (
+              <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(filterTipo !== "all" || filterArea !== "all") && (
+          <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setFilterTipo("all"); setFilterArea("all"); }}>
+            Limpar filtros
+          </Button>
+        )}
       </div>
 
       {loading ? (
