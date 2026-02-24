@@ -1,78 +1,62 @@
 
-# Integrar IA para Acompanhamento e Sugestoes nos Projetos
+
+# Formulario de Novo Projeto Mais Completo
 
 ## Resumo
 
-Adicionar um assistente de IA integrado ao sistema que oferece sugestoes contextuais em tres pontos principais: (1) analise e sugestoes para cada projeto, (2) sugestoes inteligentes para preenchimento da matriz SWOT, e (3) recomendacoes de acompanhamento para etapas. A IA usara o Lovable AI (modelo google/gemini-3-flash-preview) atraves de uma edge function, sem necessidade de chave de API adicional.
+Reformular o formulario de criacao de projeto para incluir todos os campos relevantes, organizado em secoes claras com melhor experiencia de uso. O formulario passara a ter campos de datas (inicio e fim), selecao de responsavel, status inicial, e secao de entregas para todos os perfis.
 
-## Funcionalidades
+## O que muda para o usuario
 
-### 1. Assistente IA na pagina do Projeto
+O formulario atual tem apenas 5-6 campos basicos. O novo formulario tera:
 
-Um botao "Sugestoes IA" no cabecalho da pagina de detalhe do projeto. Ao clicar, a IA recebe o contexto completo do projeto (nome, descricao, status, etapas, progresso, orcamento, itens SWOT) e retorna:
-
-- Analise de riscos e pontos de atencao
-- Sugestoes de proximos passos
-- Recomendacoes de melhoria baseadas no status atual
-- Alertas sobre atrasos ou gargalos
-
-O resultado aparece em um dialog/card expansivel com a resposta formatada em markdown.
-
-### 2. Sugestoes IA para Matriz SWOT
-
-Um botao "Sugerir com IA" em cada quadrante da SWOT. Ao clicar, a IA recebe o contexto do projeto e os itens SWOT ja existentes, e sugere 3-5 novos itens para aquele quadrante especifico. O usuario pode aceitar individualmente cada sugestao (clicando para adicionar) ou descartar.
-
-### 3. Sugestoes IA para Etapas
-
-Um botao "Sugerir Etapas" no card de etapas. A IA analisa o projeto e as etapas existentes e sugere novas etapas que estejam faltando, com nomes e descricoes. O usuario pode aceitar cada sugestao individualmente.
+- **Secao 1 - Informacoes Gerais**: Titulo, descricao/justificativa, area estrategica, objetivo estrategico
+- **Secao 2 - Planejamento**: Responsavel (dropdown com usuarios do sistema), data de inicio, data de fim, estimativa de prazo (texto livre)
+- **Secao 3 - Financeiro**: Orcamento previsto (R$) com formatacao
+- **Secao 4 - Entregas**: Entregas esperadas (textarea) -- visivel para todos os perfis
+- Organizacao visual com separadores e subtitulos por secao
+- Indicacao clara de campos obrigatorios
+- Largura maxima maior (max-w-3xl) para melhor aproveitamento do espaco
 
 ## Detalhes Tecnicos
 
-### Edge Function: `ai-project-assistant`
+### Arquivo modificado: `src/pages/NovoProjeto.tsx`
 
-Uma unica edge function com diferentes "modos" de operacao:
+Alteracoes:
+1. Adicionar campos `data_inicio`, `data_fim` e `responsavel_id` ao estado do formulario
+2. Carregar lista de `profiles` (id, nome) ao montar o componente para popular o dropdown de responsavel
+3. Usar `type="date"` para os campos de data de inicio e fim
+4. Incluir selecao de responsavel (Select com usuarios) -- coordenacao pode escolher qualquer usuario; lider fica fixo como ele mesmo
+5. Tornar a secao "Entregas Esperadas" visivel para coordenacao tambem
+6. Atualizar o insert de `projetos` para incluir `data_inicio`, `data_fim` e `responsavel_id` selecionado
+7. Atualizar o insert de `propostas_projeto` para incluir as estimativas de data
+8. Organizar campos em secoes com titulos visuais (usando Separator e subtitulos)
+9. Aumentar container para `max-w-3xl`
+
+### Nenhuma migracao necessaria
+
+A tabela `projetos` ja possui `data_inicio`, `data_fim` e `responsavel_id`. A tabela `propostas_projeto` ja possui `estimativa_prazo`. Nao e necessario alterar o banco.
+
+### Estrutura visual do formulario
 
 ```text
-POST /ai-project-assistant
-Body: { mode: "analise" | "swot" | "etapas", context: {...} }
++------------------------------------------+
+| Informacoes Gerais                       |
+| [Titulo *]                               |
+| [Descricao / Justificativa *]            |
+| [Area Estrategica] [Objetivo Estrategico]|
+|------------------------------------------|
+| Planejamento                             |
+| [Responsavel]     [Estimativa de Prazo]  |
+| [Data Inicio]     [Data Fim]             |
+|------------------------------------------|
+| Financeiro                               |
+| [Orcamento Previsto (R$)]                |
+|------------------------------------------|
+| Entregas                                 |
+| [Entregas Esperadas]                     |
+|------------------------------------------|
+| [Cancelar]  [Criar Projeto / Enviar]     |
++------------------------------------------+
 ```
 
-- **mode "analise"**: Recebe dados completos do projeto, retorna analise em markdown
-- **mode "swot"**: Recebe dados do projeto + tipo do quadrante + itens existentes, retorna array de sugestoes via tool calling
-- **mode "etapas"**: Recebe dados do projeto + etapas existentes, retorna array de etapas sugeridas via tool calling
-
-A funcao usa `LOVABLE_API_KEY` (ja configurada) para chamar `https://ai.gateway.lovable.dev/v1/chat/completions` com o modelo `google/gemini-3-flash-preview`.
-
-Para os modos "swot" e "etapas", sera usado tool calling para extrair output estruturado (array de sugestoes). Para o modo "analise", sera usado streaming SSE para exibir a resposta token a token.
-
-### Arquivos a criar
-
-- `supabase/functions/ai-project-assistant/index.ts` -- Edge function com 3 modos
-
-### Arquivos a modificar
-
-- `src/pages/ProjetoDetalhe.tsx` -- Adicionar botao "Sugestoes IA" no cabecalho, dialog com resultado streaming, botao "Sugerir Etapas" no card de etapas
-- `src/components/projetos/SWOTMatrix.tsx` -- Adicionar botao "Sugerir com IA" por quadrante, lista de sugestoes com botao aceitar/descartar
-- `supabase/config.toml` -- Registrar a nova edge function com `verify_jwt = false`
-
-### Componentes de UI
-
-- Dialog de analise IA com streaming de markdown (usando `react-markdown` -- sera necessario instalar)
-- Lista de sugestoes SWOT com botoes "Adicionar" / "Descartar" por item
-- Lista de sugestoes de etapas com botoes "Adicionar" / "Descartar" por item
-- Indicador de loading (spinner) durante a chamada da IA
-- Icone de "Sparkles" (lucide) para identificar funcionalidades de IA
-
-### Fluxo do usuario
-
-1. Abre um projeto
-2. Clica em "Sugestoes IA" no topo -- ve uma analise completa do projeto com riscos, recomendacoes e proximos passos
-3. Na SWOT, clica "Sugerir" em um quadrante -- ve 3-5 sugestoes, clica para adicionar as que quiser
-4. Nas etapas, clica "Sugerir Etapas" -- ve sugestoes de etapas faltantes, clica para adicionar
-
-### Seguranca
-
-- A edge function valida o JWT do usuario (autenticacao obrigatoria)
-- `LOVABLE_API_KEY` nunca e exposta no frontend
-- O prompt do sistema e definido apenas no backend, nao no cliente
-- Erros 429 (rate limit) e 402 (creditos) sao tratados e exibidos como toast no frontend
