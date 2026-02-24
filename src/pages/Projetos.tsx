@@ -32,6 +32,7 @@ export default function Projetos() {
   const [search, setSearch] = useState("");
   const [filterArea, setFilterArea] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterCC, setFilterCC] = useState("all");
 
   useEffect(() => {
     loadData();
@@ -46,11 +47,14 @@ export default function Projetos() {
     if (areasRes.data) setAreas(areasRes.data);
   };
 
+  const centrosCusto = [...new Set(projetos.map((p) => p.centro_custo).filter(Boolean))].sort();
+
   const filtered = projetos.filter((p) => {
     const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase());
     const matchArea = filterArea === "all" || p.area_id === filterArea;
     const matchStatus = filterStatus === "all" || p.status === filterStatus;
-    return matchSearch && matchArea && matchStatus;
+    const matchCC = filterCC === "all" || p.centro_custo === filterCC;
+    return matchSearch && matchArea && matchStatus && matchCC;
   });
 
   return (
@@ -91,6 +95,17 @@ export default function Projetos() {
             ))}
           </SelectContent>
         </Select>
+        {centrosCusto.length > 0 && (
+          <Select value={filterCC} onValueChange={setFilterCC}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Centro de Custo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os CC</SelectItem>
+              {centrosCusto.map((cc) => (
+                <SelectItem key={cc} value={cc}>{cc}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Project List */}
