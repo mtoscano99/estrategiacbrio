@@ -48,6 +48,44 @@ const STATUS_LABELS: Record<string, string> = {
   cancelado: "Cancelado",
 };
 
+function EditableCentroCusto({ value, onSave }: { value: string; onSave: (val: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 mt-1">
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="h-7 text-xs w-32"
+          placeholder="Centro de custo"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { onSave(draft); setEditing(false); }
+            if (e.key === "Escape") { setDraft(value); setEditing(false); }
+          }}
+        />
+        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { onSave(draft); setEditing(false); }}>
+          <Check className="h-3 w-3" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setDraft(value); setEditing(false); }}>
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => { setDraft(value); setEditing(true); }}
+      className="text-xs text-muted-foreground mt-1 hover:text-foreground transition-colors text-left"
+    >
+      {value ? `CC: ${value}` : "+ Centro de custo"}
+    </button>
+  );
+}
+
 function SortableEtapaItem({
   etapa,
   index,
@@ -401,8 +439,6 @@ export default function ProjetoDetalhe() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
-
-
   const addComentario = async () => {
     if (!novoComentario.trim() || !user) return;
     const { error } = await supabase.from("comentarios").insert({
@@ -461,13 +497,25 @@ export default function ProjetoDetalhe() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <DollarSign className="h-5 w-5 text-success" />
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Orçamento</p>
                 <p className="text-lg font-bold">{orcamento.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
                 <p className="text-xs text-muted-foreground">Gasto: {gasto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
-                {(projeto as any).centro_custo && (
-                  <p className="text-xs text-muted-foreground mt-1">CC: {(projeto as any).centro_custo}</p>
-                )}
+                <EditableCentroCusto
+                  value={(projeto as any).centro_custo ?? ""}
+                  onSave={async (val) => {
+                    const { error } = await supabase
+                      .from("projetos")
+                      .update({ centro_custo: val || null })
+                      .eq("id", projeto!.id);
+                    if (error) {
+                      toast.error("Erro ao salvar centro de custo");
+                    } else {
+                      setProjeto((prev: any) => prev ? { ...prev, centro_custo: val || null } : prev);
+                      toast.success("Centro de custo atualizado");
+                    }
+                  }}
+                />
               </div>
             </div>
           </CardContent>
