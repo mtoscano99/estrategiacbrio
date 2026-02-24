@@ -23,6 +23,7 @@ import ReactMarkdown from "react-markdown";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import SWOTMatrix from "@/components/projetos/SWOTMatrix";
+import AnexosProjeto from "@/components/projetos/AnexosProjeto";
 import { UserAvatar } from "@/components/UserAvatar";
 import {
   DndContext,
@@ -592,6 +593,9 @@ export default function ProjetoDetalhe() {
           <CardContent><p className="text-sm text-muted-foreground whitespace-pre-wrap">{projeto.descricao}</p></CardContent>
         </Card>
       )}
+
+      {/* Anexos */}
+      <AnexosProjeto projetoId={id!} />
 
       {/* Análise SWOT */}
       <SWOTMatrix projetoId={id!} projectContext={buildProjectContext()} />

@@ -49,6 +49,47 @@ export type Database = {
           },
         ]
       }
+      anexos_projeto: {
+        Row: {
+          created_at: string
+          enviado_por: string
+          id: string
+          nome_arquivo: string
+          projeto_id: string
+          storage_path: string
+          tamanho: number | null
+          tipo_mime: string | null
+        }
+        Insert: {
+          created_at?: string
+          enviado_por: string
+          id?: string
+          nome_arquivo: string
+          projeto_id: string
+          storage_path: string
+          tamanho?: number | null
+          tipo_mime?: string | null
+        }
+        Update: {
+          created_at?: string
+          enviado_por?: string
+          id?: string
+          nome_arquivo?: string
+          projeto_id?: string
+          storage_path?: string
+          tamanho?: number | null
+          tipo_mime?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anexos_projeto_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       areas_estrategicas: {
         Row: {
           created_at: string
