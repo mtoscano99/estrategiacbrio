@@ -1,83 +1,102 @@
 
 
-## Upload de Anexos e Documentos nos Projetos
+## Sistema de Notificacoes
 
 ### Resumo
-Adicionar uma secao de anexos na pagina de detalhe do projeto, permitindo upload, listagem e exclusao de documentos (PDF, imagens, planilhas, etc.) usando o storage do backend.
+Criar um sistema de notificacoes in-app que avisa usuarios sobre aprovacoes de propostas, atrasos em etapas e novos comentarios nos projetos. Inclui tabela no banco, icone de sino no header com badge de contagem, e painel dropdown para listar/marcar como lidas.
+
+### Arquitetura
+
+```text
+[Evento acontece] --> [INSERT na tabela notificacoes] --> [Frontend poll/realtime] --> [Badge + Dropdown]
+```
+
+Eventos que geram notificacao:
+1. **Aprovacao/Rejeicao de proposta** - notifica o proponente
+2. **Novo comentario** - notifica o responsavel do projeto e outros participantes
+3. **Etapa atrasada** - notifica o responsavel da etapa e do projeto
 
 ### Alteracoes necessarias
 
-#### 1. Backend - Storage Bucket e Tabela de Metadados
+#### 1. Backend - Tabela e Politicas
 
-**Criar bucket `project-attachments`** (publico para facilitar download):
+**Nova tabela `notificacoes`:**
 
-```sql
-INSERT INTO storage.buckets (id, name, public) VALUES ('project-attachments', 'project-attachments', true);
-```
+| Coluna | Tipo | Descricao |
+|---|---|---|
+| id | uuid, PK | Identificador |
+| usuario_id | uuid, NOT NULL | Destinatario da notificacao |
+| tipo | text, NOT NULL | "aprovacao", "rejeicao", "comentario", "atraso" |
+| titulo | text, NOT NULL | Titulo curto (ex: "Proposta aprovada") |
+| mensagem | text | Descricao detalhada |
+| link | text | Rota para navegacao (ex: "/projetos/uuid") |
+| lida | boolean, default false | Se ja foi vista |
+| created_at | timestamptz, default now() | Data de criacao |
 
-**Politicas RLS no bucket** para controlar acesso:
-- SELECT: usuarios autenticados podem ler
-- INSERT: coordenacao e lideres da area do projeto podem inserir
-- DELETE: coordenacao e o proprio uploader podem excluir
+**Politicas RLS:**
+- SELECT: usuario ve apenas suas proprias notificacoes (`usuario_id = auth.uid()`)
+- INSERT: usuarios autenticados podem inserir (para permitir que o sistema crie notificacoes em nome de acoes de outros usuarios)
+- UPDATE: usuario pode atualizar apenas as proprias (marcar como lida)
+- DELETE: usuario pode excluir apenas as proprias
 
-**Criar tabela `anexos_projeto`** para metadados:
+**Realtime:** habilitar na tabela para atualizacao instantanea no frontend.
 
-```text
-anexos_projeto
-- id (uuid, PK)
-- projeto_id (uuid, FK -> projetos.id, NOT NULL)
-- nome_arquivo (text, NOT NULL)
-- tamanho (bigint)
-- tipo_mime (text)
-- storage_path (text, NOT NULL)
-- enviado_por (uuid, NOT NULL)
-- created_at (timestamptz, default now())
-```
+#### 2. Frontend - Componente de Notificacoes
 
-**Politicas RLS na tabela:**
-- SELECT: coordenacao ve tudo; lideres veem anexos de projetos da sua area
-- INSERT: usuarios autenticados podem inserir (com `enviado_por = auth.uid()`)
-- DELETE: coordenacao pode excluir qualquer um; usuario pode excluir os proprios
+**Novo componente: `src/components/NotificacoesDropdown.tsx`**
 
-**ON DELETE CASCADE** no FK de `projeto_id` para limpar anexos ao excluir projeto.
+- Icone de sino (Bell) no header do layout com badge vermelho mostrando contagem de nao lidas
+- Ao clicar, abre um Popover/Dropdown com lista das ultimas notificacoes
+- Cada notificacao mostra:
+  - Icone baseado no tipo (Check para aprovacao, X para rejeicao, MessageSquare para comentario, AlertTriangle para atraso)
+  - Titulo e mensagem truncada
+  - Tempo relativo ("ha 5 min")
+  - Notificacoes nao lidas com fundo destacado
+- Ao clicar em uma notificacao: marca como lida e navega para o link
+- Botao "Marcar todas como lidas" no topo
+- Usa Supabase Realtime para receber novas notificacoes sem refresh
 
-#### 2. Frontend - Componente de Anexos
+#### 3. Integracao no AppLayout
 
-**Novo componente: `src/components/projetos/AnexosProjeto.tsx`**
+Adicionar uma barra de header no `AppLayout` entre a sidebar e o conteudo, contendo o componente `NotificacoesDropdown` alinhado a direita.
 
-Recebe `projetoId` como prop e renderiza:
+#### 4. Geracao de Notificacoes
 
-- Botao "Adicionar Anexo" que abre um input file (aceita multiplos arquivos)
-- Lista de anexos existentes em formato de tabela compacta:
-  - Icone baseado no tipo (PDF, imagem, planilha, generico)
-  - Nome do arquivo (clicavel para download)
-  - Tamanho formatado (KB/MB)
-  - Quem enviou
-  - Data de envio
-  - Botao de excluir (visivel apenas para o uploader ou coordenacao)
+Modificar os seguintes fluxos existentes para criar notificacoes:
 
-**Logica de upload:**
-- Faz upload para `project-attachments/{projeto_id}/{uuid}-{filename}`
-- Insere registro na tabela `anexos_projeto`
-- Limite de 20MB por arquivo (validacao client-side)
-- Feedback via toast de sucesso/erro
+**`src/pages/Aprovacoes.tsx` - handleApproval:**
+Apos aprovar/rejeitar, inserir notificacao para o proponente:
+- tipo: "aprovacao" ou "rejeicao"
+- titulo: "Proposta aprovada!" ou "Proposta rejeitada"
+- mensagem: titulo da proposta + comentario (se houver)
+- link: "/projetos/{id}" (se aprovado e projeto gerado) ou null
 
-**Logica de download:**
-- Gera URL publica do storage para download direto
+**`src/pages/ProjetoDetalhe.tsx` - ao adicionar comentario:**
+Inserir notificacao para o responsavel do projeto (se diferente do autor):
+- tipo: "comentario"
+- titulo: "Novo comentario no projeto X"
+- mensagem: trecho do comentario
+- link: "/projetos/{id}"
 
-**Logica de exclusao:**
-- Remove o arquivo do storage
-- Remove o registro da tabela `anexos_projeto`
+**`src/pages/Dashboard.tsx` ou via trigger SQL - atrasos:**
+Criar uma funcao SQL ou edge function agendada que verifica etapas com `data_fim < now()` e `status != 'concluido'`, e cria notificacoes de atraso para os responsaveis (evitando duplicatas).
 
-#### 3. Integracao na pagina ProjetoDetalhe
-
-Adicionar o componente `<AnexosProjeto>` como um novo Card entre a descricao e a analise SWOT (ou apos os comentarios), com titulo "Anexos e Documentos" e icone `Paperclip`.
+Para simplificar a primeira versao, as notificacoes de atraso serao geradas client-side quando o Dashboard carrega, verificando se ja existe notificacao recente para aquela etapa.
 
 ### Arquivos alterados/criados
 
 | Arquivo | Acao |
 |---|---|
-| Migracao SQL | Criar bucket, tabela `anexos_projeto`, politicas RLS |
-| `src/components/projetos/AnexosProjeto.tsx` | Novo componente |
-| `src/pages/ProjetoDetalhe.tsx` | Importar e renderizar `AnexosProjeto` |
+| Migracao SQL | Criar tabela `notificacoes`, politicas RLS, habilitar realtime |
+| `src/components/NotificacoesDropdown.tsx` | Novo componente com dropdown e realtime |
+| `src/components/layout/AppLayout.tsx` | Adicionar header com NotificacoesDropdown |
+| `src/pages/Aprovacoes.tsx` | Inserir notificacao ao aprovar/rejeitar |
+| `src/pages/ProjetoDetalhe.tsx` | Inserir notificacao ao comentar |
+
+### Detalhes Tecnicos
+
+- A tabela usa `usuario_id` (nao FK para auth.users) para manter compatibilidade com o padrao do projeto
+- Realtime via `supabase.channel('notificacoes').on('postgres_changes', ...)` filtrado por `usuario_id`
+- Polling como fallback nao sera necessario com realtime habilitado
+- Notificacoes de atraso: na v1, geradas no client ao carregar o Dashboard; em versao futura pode ser um cron job via edge function
 
