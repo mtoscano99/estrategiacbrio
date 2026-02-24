@@ -1,89 +1,112 @@
 
 
-# Cadastro dos Dados do Planejamento Estrategico no Banco de Dados
+# Fluxo Completo de KPIs -- Criacao, Alimentacao e Acompanhamento
 
 ## Resumo
-Inserir todos os dados extraidos do documento "Planejamento Estrategico CBRio 2026-2029" nas tabelas do banco de dados. As tabelas estao todas vazias e precisam ser populadas.
 
-## Dados a serem inseridos
+Criar um sistema completo de gestao de KPIs que permita cadastrar indicadores, registrar medicoes periodicas e visualizar o progresso ao longo do tempo. Isso vai alem dos "alvos" ja existentes no planejamento estrategico, oferecendo um painel dedicado com graficos de evolucao e formularios de alimentacao.
 
-### 1. Areas Estrategicas (tabela `areas_estrategicas`)
-7 areas identificadas no documento:
-- Gestao e Operacoes
-- Recursos Humanos (RH / Pessoas)
-- Financeiro
-- Ministerial
-- Infraestrutura
-- Comunicacao e Marketing
-- Relacionamento e Captacao
+## O que sera construido
 
-### 2. Objetivos Estrategicos (tabela `objetivos_estrategicos`)
-4 objetivos anuais, um por ano do quadrienio:
+### 1. Nova tabela `kpis` (indicadores)
+Armazena a definicao de cada KPI:
 
-| Ano  | Tema Anual   | Titulo/Descricao                                                                |
-|------|-------------|---------------------------------------------------------------------------------|
-| 2026 | Unidade     | Consolidacao organizacional, finalizar pendencias, incremento 30% receita       |
-| 2027 | Reavaliacao | Pausa estrategica, auditoria de efetividade, sustentabilidade CBS1 50%          |
-| 2028 | Escalonamento| Expansao qualificada, sustentabilidade CBS1 80%, iniciar obras CBS2            |
-| 2029 | Maturidade  | Consolidacao final, certificacao de gestao, plano 2030-2033, frequencia 3.000   |
+| Coluna         | Tipo      | Descricao                                      |
+|----------------|-----------|-------------------------------------------------|
+| id             | uuid (PK) | Identificador unico                             |
+| nome           | text      | Nome do KPI (ex: "Frequencia Presencial")       |
+| descricao      | text      | Descricao detalhada                             |
+| unidade        | text      | Unidade de medida (%, R$, unidades, pessoas)    |
+| meta           | numeric   | Valor-alvo a ser alcancado                      |
+| area_id        | uuid (FK) | Area estrategica vinculada (opcional)            |
+| objetivo_id    | uuid (FK) | Objetivo estrategico vinculado (opcional)        |
+| periodicidade  | text      | mensal, trimestral, semestral, anual            |
+| criado_por     | uuid (FK) | Usuario que criou                                |
+| created_at     | timestamp | Data de criacao                                  |
+| updated_at     | timestamp | Data de atualizacao                              |
 
-### 3. Alvos do PE (tabela `alvos_pe`)
-Alvos vinculados a cada objetivo estrategico, extraidos das tabelas de "Objetivos Especificos e Indicadores" do documento:
+### 2. Nova tabela `kpi_medicoes` (registros de medicao)
+Armazena cada medicao/alimentacao do KPI:
 
-**2026 (6 alvos):**
-- Concluir dimensionamento de quadro de pessoal (Meta: 100%)
-- Finalizar todos os projetos satelites (Meta: 100%)
-- Equilibrio operacional (Meta: deficit maximo 200mil)
-- Frequencia presencial media semanal 2.300
-- Preparar relatorio de licoes aprendidas 2024-2026 (Meta: 100%)
-- Incremento 30% receita recorrente doadores (Meta: 80% contribuintes)
+| Coluna         | Tipo      | Descricao                                      |
+|----------------|-----------|-------------------------------------------------|
+| id             | uuid (PK) | Identificador unico                             |
+| kpi_id         | uuid (FK) | Referencia ao KPI                               |
+| valor          | numeric   | Valor medido                                    |
+| data_referencia| date      | Data/periodo da medicao                         |
+| observacao     | text      | Comentario opcional sobre a medicao             |
+| registrado_por | uuid (FK) | Usuario que registrou                            |
+| created_at     | timestamp | Data do registro                                 |
 
-**2027 (5 alvos):**
-- Auditoria completa de efetividade (Meta: 5 relatorios)
-- Pesquisas com stakeholders (Meta: 4 pesquisas)
-- Nivel de sustentabilidade CBS1 50%
-- Refinar metodologias baseadas em aprendizados (Meta: 100%)
-- Elaborar plano estrategico 2028-2029
+### 3. Politicas de seguranca (RLS)
 
-**2028 (4 alvos):**
-- Sustentabilidade do CBS1 nivel 80%
-- Iniciar obras de infraestrutura CBS2
-- Lancar 2 pontos satelites
-- Campanha doacao recorrente 35% receita
+- **kpis**: Coordenacao pode criar/editar/excluir; todos autenticados podem ler
+- **kpi_medicoes**: Coordenacao pode tudo; lideres podem inserir e ler medicoes da sua area; todos autenticados podem ler
 
-**2029 (5 alvos):**
-- Certificacao de qualidade de gestao (Meta: 85%+)
-- Sustentabilidade CBS2 50% + reserva operacional 6 meses
-- Lancar 3 novos programas ministeriais
-- Frequencia presencial media 3.000
-- Preparar plano estrategico 2030-2033 (Meta: 100%)
+### 4. Nova pagina `/kpis` -- Painel de KPIs
 
-### 4. Diagnostico Situacional (tabela `diagnostico_situacional`)
-Dados parciais de 2025 extraidos do documento, organizados por categoria:
+Tela principal com:
+- **Cards resumo** no topo: total de KPIs, KPIs no alvo, KPIs abaixo da meta, KPIs sem medicao recente
+- **Lista/grid de KPIs** com barra de progresso visual (valor atual vs meta), filtros por area e periodicidade
+- **Mini-grafico sparkline** em cada card mostrando tendencia das ultimas medicoes
 
-**Frequencia:**
-- Presencial 2025 (Jan-Set): 93.518
-- Online 2025 (Jan-Set): 239.062
+### 5. Dialog/Modal para criar novo KPI
 
-**Aceitacoes:**
-- Presenciais 2025: 621
-- Online 2025: 765
+Formulario com campos:
+- Nome, descricao, unidade de medida
+- Meta (valor numerico alvo)
+- Area estrategica (select das areas existentes)
+- Objetivo estrategico (select filtrado por area)
+- Periodicidade (mensal/trimestral/semestral/anual)
 
-**Visitantes:**
-- Presenciais 2025: 2.426
-- Online 2025: 501
+Disponivel apenas para coordenacao.
 
-**Voluntariado:**
-- Postos ocupados 2025 (parcial): ~8.581
+### 6. Dialog/Modal para registrar medicao
 
-**Financeiro:**
-- Arrecadacao 2025 (Jan-Set): R$ 12.046.930,10
-- Despesas 2025 (Jan-Out): R$ 12.297.631,63
+Formulario simples:
+- KPI (pre-selecionado se aberto de um KPI especifico)
+- Valor medido
+- Data de referencia
+- Observacao (opcional)
+
+Disponivel para coordenacao e lideres de area (para KPIs da sua area).
+
+### 7. Pagina de detalhe do KPI `/kpis/:id`
+
+- Informacoes do KPI (nome, descricao, meta, area, objetivo)
+- Grafico de linha mostrando evolucao das medicoes ao longo do tempo com linha de meta
+- Tabela com historico completo de medicoes
+- Botao para adicionar nova medicao
+- Botao para editar o KPI (somente coordenacao)
+
+### 8. Integracao com sidebar e Dashboard
+
+- Adicionar item "KPIs" na sidebar (icone BarChart3)
+- Adicionar secao no Dashboard com os 4-5 KPIs mais relevantes e seus status
 
 ## Detalhes Tecnicos
 
-- Todas as insercoes serao feitas via ferramenta de insert (nao migrations), pois sao dados e nao alteracoes de schema.
-- Os IDs serao gerados automaticamente (`gen_random_uuid()`).
-- Os alvos precisam referenciar o `objetivo_id` correto, entao os objetivos serao inseridos primeiro.
-- Nenhuma alteracao de codigo frontend sera necessaria -- as paginas de Planejamento Estrategico e Dashboard ja consultam essas tabelas.
+### Migracao SQL
+Uma unica migracao criando:
+- Tabela `kpis` com foreign keys para `areas_estrategicas`, `objetivos_estrategicos` e `profiles`
+- Tabela `kpi_medicoes` com foreign keys para `kpis` e `profiles`
+- Politicas RLS permissivas para leitura autenticada e restritivas para escrita por perfil
+- Trigger `update_updated_at_column` na tabela `kpis`
+
+### Novos arquivos
+- `src/pages/KPIs.tsx` -- listagem com cards, filtros e resumo
+- `src/pages/KPIDetalhe.tsx` -- pagina de detalhe com grafico de evolucao
+- `src/components/kpis/NovoKPIDialog.tsx` -- formulario de criacao
+- `src/components/kpis/NovaMedicaoDialog.tsx` -- formulario de alimentacao
+- `src/components/kpis/KPICard.tsx` -- card individual com progresso
+
+### Arquivos modificados
+- `src/App.tsx` -- novas rotas `/kpis` e `/kpis/:id`
+- `src/components/layout/AppSidebar.tsx` -- novo item "KPIs" no menu
+- `src/pages/Dashboard.tsx` -- secao com resumo dos KPIs principais
+
+### Bibliotecas utilizadas (ja instaladas)
+- `recharts` para graficos de evolucao
+- `react-hook-form` + `zod` para validacao dos formularios
+- Componentes shadcn/ui existentes (Dialog, Card, Select, Input, Badge, Progress)
 
