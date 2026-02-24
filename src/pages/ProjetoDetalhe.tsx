@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   ArrowLeft, Calendar, DollarSign, Plus, Send, CheckCircle2,
   Clock, AlertTriangle, BarChart3, Sparkles, Loader2, Check, X,
+  ChevronDown, Trash2, User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -35,9 +37,11 @@ export default function ProjetoDetalhe() {
   const [projeto, setProjeto] = useState<any>(null);
   const [etapas, setEtapas] = useState<any[]>([]);
   const [comentarios, setComentarios] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
   const [novoComentario, setNovoComentario] = useState("");
-  const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "" });
+  const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "" });
   const [showAddEtapa, setShowAddEtapa] = useState(false);
+  const [expandedEtapa, setExpandedEtapa] = useState<string | null>(null);
 
   // AI state
   const [showAnalise, setShowAnalise] = useState(false);
@@ -51,14 +55,16 @@ export default function ProjetoDetalhe() {
   }, [id]);
 
   const loadData = async () => {
-    const [projetoRes, etapasRes, comentariosRes] = await Promise.all([
+    const [projetoRes, etapasRes, comentariosRes, profilesRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
       supabase.from("etapas_projeto").select("*").eq("projeto_id", id).order("ordem"),
       supabase.from("comentarios").select("*, profiles!comentarios_autor_id_fkey(nome)").eq("projeto_id", id).order("created_at", { ascending: false }),
+      supabase.from("profiles").select("id, nome"),
     ]);
     if (projetoRes.data) setProjeto(projetoRes.data);
     if (etapasRes.data) setEtapas(etapasRes.data);
     if (comentariosRes.data) setComentarios(comentariosRes.data);
+    if (profilesRes.data) setProfiles(profilesRes.data);
   };
 
   const buildProjectContext = useCallback(() => {
@@ -196,20 +202,32 @@ export default function ProjetoDetalhe() {
     const { error } = await supabase.from("etapas_projeto").insert({
       projeto_id: id,
       nome: novaEtapa.nome,
-      descricao: novaEtapa.descricao,
+      descricao: novaEtapa.descricao || null,
+      data_inicio: novaEtapa.data_inicio || null,
+      data_fim: novaEtapa.data_fim || null,
+      responsavel_id: novaEtapa.responsavel_id || null,
       ordem: etapas.length,
-    });
+    } as any);
     if (error) { toast.error("Erro ao adicionar etapa"); return; }
-    setNovaEtapa({ nome: "", descricao: "" });
+    setNovaEtapa({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "" });
     setShowAddEtapa(false);
     loadData();
     toast.success("Etapa adicionada");
   };
 
-  const updateEtapaStatus = async (etapaId: string, status: string) => {
-    await supabase.from("etapas_projeto").update({ status: status as any }).eq("id", etapaId);
+  const updateEtapa = async (etapaId: string, field: string, value: any) => {
+    const { error } = await supabase.from("etapas_projeto").update({ [field]: value || null } as any).eq("id", etapaId);
+    if (error) { toast.error("Erro ao atualizar etapa"); return; }
     loadData();
   };
+
+  const deleteEtapa = async (etapaId: string) => {
+    const { error } = await supabase.from("etapas_projeto").delete().eq("id", etapaId);
+    if (error) { toast.error("Erro ao excluir etapa"); return; }
+    loadData();
+    toast.success("Etapa excluída");
+  };
+
 
   const addComentario = async () => {
     if (!novoComentario.trim() || !user) return;
@@ -320,8 +338,28 @@ export default function ProjetoDetalhe() {
         </CardHeader>
         <CardContent className="space-y-3">
           {showAddEtapa && (
-            <div className="flex gap-2 p-3 rounded-lg bg-muted">
+            <div className="space-y-3 p-4 rounded-lg bg-muted">
               <Input placeholder="Nome da etapa" value={novaEtapa.nome} onChange={(e) => setNovaEtapa({ ...novaEtapa, nome: e.target.value })} />
+              <Textarea placeholder="Descrição (opcional)" value={novaEtapa.descricao} onChange={(e) => setNovaEtapa({ ...novaEtapa, descricao: e.target.value })} className="min-h-[60px]" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Início</label>
+                  <Input type="date" value={novaEtapa.data_inicio} onChange={(e) => setNovaEtapa({ ...novaEtapa, data_inicio: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Fim</label>
+                  <Input type="date" value={novaEtapa.data_fim} onChange={(e) => setNovaEtapa({ ...novaEtapa, data_fim: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
+                  <Select value={novaEtapa.responsavel_id} onValueChange={(val) => setNovaEtapa({ ...novaEtapa, responsavel_id: val })}>
+                    <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                    <SelectContent>
+                      {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <Button size="sm" onClick={addEtapa}>Adicionar</Button>
             </div>
           )}
@@ -338,7 +376,7 @@ export default function ProjetoDetalhe() {
                     <p className="text-sm font-medium">{s.nome}</p>
                     <p className="text-xs text-muted-foreground">{s.descricao}</p>
                   </div>
-                  <button onClick={() => acceptEtapaSuggestion(i)} className="text-emerald-600 hover:text-emerald-700 shrink-0">
+                  <button onClick={() => acceptEtapaSuggestion(i)} className="text-primary hover:text-primary/80 shrink-0">
                     <Check className="h-4 w-4" />
                   </button>
                   <button onClick={() => dismissEtapaSuggestion(i)} className="text-muted-foreground hover:text-destructive shrink-0">
@@ -352,28 +390,89 @@ export default function ProjetoDetalhe() {
           {etapas.length === 0 && etapaSuggestions.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">Nenhuma etapa cadastrada</p>
           ) : (
-            etapas.map((etapa, i) => (
-              <div key={etapa.id} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-                <div className="flex items-center gap-2 flex-1">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${etapa.status === "concluido" ? "bg-success text-success-foreground" : etapa.status === "atrasado" ? "bg-destructive text-destructive-foreground" : "bg-muted text-muted-foreground"}`}>
-                    {etapa.status === "concluido" ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+            etapas.map((etapa, i) => {
+              const responsavelNome = profiles.find((p) => p.id === etapa.responsavel_id)?.nome;
+              return (
+                <Collapsible
+                  key={etapa.id}
+                  open={expandedEtapa === etapa.id}
+                  onOpenChange={(open) => setExpandedEtapa(open ? etapa.id : null)}
+                >
+                  <div className="rounded-lg border bg-card overflow-hidden">
+                    <CollapsibleTrigger asChild>
+                      <button className="flex items-center gap-3 p-3 w-full text-left hover:bg-muted/50 transition-colors">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${etapa.status === "concluido" ? "bg-primary text-primary-foreground" : etapa.status === "atrasado" ? "bg-destructive text-destructive-foreground" : "bg-muted text-muted-foreground"}`}>
+                          {etapa.status === "concluido" ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-sm font-medium ${etapa.status === "concluido" ? "line-through text-muted-foreground" : ""}`}>
+                            {etapa.nome}
+                          </span>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            {responsavelNome && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1"><User className="h-3 w-3" />{responsavelNome}</span>
+                            )}
+                            {etapa.data_fim && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(etapa.data_fim), "dd/MM/yyyy")}</span>
+                            )}
+                          </div>
+                        </div>
+                        <Badge variant={etapa.status === "atrasado" ? "destructive" : etapa.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
+                          {STATUS_LABELS[etapa.status]}
+                        </Badge>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${expandedEtapa === etapa.id ? "rotate-180" : ""}`} />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="px-3 pb-3 pt-1 border-t space-y-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Descrição</label>
+                          <Textarea
+                            defaultValue={etapa.descricao || ""}
+                            placeholder="Adicionar descrição..."
+                            className="min-h-[60px]"
+                            onBlur={(e) => { if (e.target.value !== (etapa.descricao || "")) updateEtapa(etapa.id, "descricao", e.target.value); }}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Data Início</label>
+                            <Input type="date" defaultValue={etapa.data_inicio || ""} onBlur={(e) => { if (e.target.value !== (etapa.data_inicio || "")) updateEtapa(etapa.id, "data_inicio", e.target.value); }} />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Data Fim</label>
+                            <Input type="date" defaultValue={etapa.data_fim || ""} onBlur={(e) => { if (e.target.value !== (etapa.data_fim || "")) updateEtapa(etapa.id, "data_fim", e.target.value); }} />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
+                            <Select value={etapa.responsavel_id || ""} onValueChange={(val) => updateEtapa(etapa.id, "responsavel_id", val)}>
+                              <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                              <SelectContent>
+                                {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-muted-foreground">Status</label>
+                            <Select value={etapa.status} onValueChange={(val) => updateEtapa(etapa.id, "status", val)}>
+                              <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => deleteEtapa(etapa.id)}>
+                            <Trash2 className="h-4 w-4 mr-1" /> Excluir
+                          </Button>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
                   </div>
-                  <span className={`text-sm font-medium ${etapa.status === "concluido" ? "line-through text-muted-foreground" : ""}`}>
-                    {etapa.nome}
-                  </span>
-                </div>
-                <Select value={etapa.status} onValueChange={(val) => updateEtapaStatus(etapa.id, val)}>
-                  <SelectTrigger className="w-[150px] h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))
+                </Collapsible>
+              );
+            })
           )}
         </CardContent>
       </Card>

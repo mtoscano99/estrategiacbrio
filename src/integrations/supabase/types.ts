@@ -200,6 +200,7 @@ export type Database = {
           nome: string
           ordem: number | null
           projeto_id: string
+          responsavel_id: string | null
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
         }
@@ -212,6 +213,7 @@ export type Database = {
           nome: string
           ordem?: number | null
           projeto_id: string
+          responsavel_id?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
         }
@@ -224,6 +226,7 @@ export type Database = {
           nome?: string
           ordem?: number | null
           projeto_id?: string
+          responsavel_id?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
         }
