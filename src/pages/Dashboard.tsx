@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
+import { UserAvatar } from "@/components/UserAvatar";
 import {
   FolderKanban,
   Clock,
   AlertTriangle,
   CheckCircle2,
-  
   BarChart3,
+  CalendarClock,
 } from "lucide-react";
 import {
   BarChart,
@@ -24,12 +25,27 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { format, differenceInDays, isPast, isFuture, isToday } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+
 
 interface Stats {
   total: number;
   emAndamento: number;
   atrasados: number;
   concluidos: number;
+}
+
+interface UpcomingMilestone {
+  id: string;
+  nome: string;
+  data_fim: string;
+  status: string;
+  projeto_nome: string;
+  projeto_id: string;
+  responsavel_nome: string | null;
+  responsavel_avatar: string | null;
 }
 
 const STATUS_COLORS = {
@@ -48,6 +64,7 @@ export default function Dashboard() {
   const [projectsByArea, setProjectsByArea] = useState<any[]>([]);
   const [statusData, setStatusData] = useState<any[]>([]);
   const [topKpis, setTopKpis] = useState<any[]>([]);
+  const [upcomingMilestones, setUpcomingMilestones] = useState<UpcomingMilestone[]>([]);
 
   useEffect(() => {
     loadData();
@@ -95,6 +112,41 @@ export default function Dashboard() {
         return { ...k, lastValue: lastMed?.valor ?? null, area_nome: k.areas_estrategicas?.nome };
       });
       setTopKpis(kpiList);
+    }
+
+    // Load upcoming milestones (etapas not concluded, with data_fim, ordered by date)
+    const { data: etapas } = await supabase
+      .from("etapas_projeto")
+      .select("id, nome, data_fim, status, responsavel_id, projeto_id, projetos(id, nome)")
+      .neq("status", "concluido")
+      .neq("status", "cancelado")
+      .not("data_fim", "is", null)
+      .order("data_fim", { ascending: true })
+      .limit(8);
+
+    if (etapas && etapas.length > 0) {
+      // Get responsible profiles
+      const responsavelIds = [...new Set(etapas.map((e: any) => e.responsavel_id).filter(Boolean))];
+      let profilesMap: Record<string, { nome: string; avatar_url: string | null }> = {};
+      if (responsavelIds.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id, nome, avatar_url").in("id", responsavelIds);
+        if (profs) {
+          profs.forEach((p: any) => { profilesMap[p.id] = { nome: p.nome, avatar_url: p.avatar_url }; });
+        }
+      }
+
+      setUpcomingMilestones(
+        (etapas as any[]).map((e) => ({
+          id: e.id,
+          nome: e.nome,
+          data_fim: e.data_fim,
+          status: e.status,
+          projeto_nome: e.projetos?.nome || "—",
+          projeto_id: e.projeto_id,
+          responsavel_nome: e.responsavel_id ? profilesMap[e.responsavel_id]?.nome || null : null,
+          responsavel_avatar: e.responsavel_id ? profilesMap[e.responsavel_id]?.avatar_url || null : null,
+        }))
+      );
     }
   };
 
@@ -182,6 +234,55 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Upcoming Milestones */}
+      {upcomingMilestones.length > 0 && (
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-primary" />
+              Próximos Marcos / Entregas
+            </CardTitle>
+            <button onClick={() => navigate("/projetos")} className="text-sm text-primary hover:underline">Ver projetos</button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {upcomingMilestones.map((m) => {
+                const dataFim = new Date(m.data_fim);
+                const days = differenceInDays(dataFim, new Date());
+                const overdue = isPast(dataFim) && !isToday(dataFim);
+                const urgent = days >= 0 && days <= 7;
+
+                return (
+                  <div
+                    key={m.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/projetos/${m.projeto_id}`)}
+                  >
+                    <div className={`w-1 h-10 rounded-full shrink-0 ${overdue ? "bg-destructive" : urgent ? "bg-warning" : "bg-primary"}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{m.nome}</p>
+                      <p className="text-xs text-muted-foreground truncate">{m.projeto_nome}</p>
+                    </div>
+                    {m.responsavel_nome && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <UserAvatar avatarUrl={m.responsavel_avatar} nome={m.responsavel_nome} className="h-5 w-5" />
+                        <span className="text-xs text-muted-foreground hidden sm:inline">{m.responsavel_nome.split(" ")[0]}</span>
+                      </div>
+                    )}
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-medium">{format(dataFim, "dd MMM", { locale: ptBR })}</p>
+                      <Badge variant={overdue ? "destructive" : urgent ? "secondary" : "outline"} className="text-[10px] px-1.5 py-0">
+                        {overdue ? `${Math.abs(days)}d atrasado` : isToday(dataFim) ? "Hoje" : `${days}d restantes`}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Top KPIs */}
       {topKpis.length > 0 && (
