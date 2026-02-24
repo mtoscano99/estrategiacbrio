@@ -1,77 +1,78 @@
 
-
-# Reestruturar o Sistema e Criar Projetos a partir do Documento
+# Integrar IA para Acompanhamento e Sugestoes nos Projetos
 
 ## Resumo
 
-O sistema ja possui toda a infraestrutura de gestao de projetos (tabela `projetos`, etapas, SWOT, KPIs, comentarios). O que falta e **popular o banco com os projetos reais** extraidos do planejamento estrategico da CBRio, e fazer pequenos ajustes no Dashboard para refletir melhor um sistema de gestao de projetos.
+Adicionar um assistente de IA integrado ao sistema que oferece sugestoes contextuais em tres pontos principais: (1) analise e sugestoes para cada projeto, (2) sugestoes inteligentes para preenchimento da matriz SWOT, e (3) recomendacoes de acompanhamento para etapas. A IA usara o Lovable AI (modelo google/gemini-3-flash-preview) atraves de uma edge function, sem necessidade de chave de API adicional.
 
-Cada "alvo" do planejamento estrategico sera convertido em um projeto concreto, vinculado ao seu objetivo estrategico e a area estrategica mais adequada.
+## Funcionalidades
 
-## Projetos que serao criados (20 projetos)
+### 1. Assistente IA na pagina do Projeto
 
-### Ano 2026 -- Unidade (6 projetos)
+Um botao "Sugestoes IA" no cabecalho da pagina de detalhe do projeto. Ao clicar, a IA recebe o contexto completo do projeto (nome, descricao, status, etapas, progresso, orcamento, itens SWOT) e retorna:
 
-| Projeto | Area | Meta/Indicador |
-|---------|------|----------------|
-| Dimensionamento de Quadro de Pessoal | Recursos Humanos | 100% conclusao |
-| Finalizacao dos Projetos Satelites | Gestao e Operacoes | 100% conclusao |
-| Equilibrio Operacional Financeiro | Financeiro | Deficit max R$ 200.000 |
-| Incremento de Frequencia Presencial (2.300) | Ministerial | Media semanal 2.300 |
-| Relatorio de Licoes Aprendidas 2024-2026 | Gestao e Operacoes | 100% conclusao |
-| Campanha Receita Recorrente Doadores (+30%) | Relacionamento e Captacao | 80% contribuintes |
+- Analise de riscos e pontos de atencao
+- Sugestoes de proximos passos
+- Recomendacoes de melhoria baseadas no status atual
+- Alertas sobre atrasos ou gargalos
 
-### Ano 2027 -- Reavaliacao (5 projetos)
+O resultado aparece em um dialog/card expansivel com a resposta formatada em markdown.
 
-| Projeto | Area | Meta/Indicador |
-|---------|------|----------------|
-| Auditoria de Efetividade | Gestao e Operacoes | 5 relatorios |
-| Pesquisas com Stakeholders | Comunicacao e Marketing | 4 pesquisas |
-| Sustentabilidade CBS1 - Nivel 50% | Financeiro | 50% |
-| Refinamento de Metodologias | Gestao e Operacoes | 100% conclusao |
-| Plano Estrategico 2028-2029 | Gestao e Operacoes | Documento finalizado |
+### 2. Sugestoes IA para Matriz SWOT
 
-### Ano 2028 -- Escalonamento (4 projetos)
+Um botao "Sugerir com IA" em cada quadrante da SWOT. Ao clicar, a IA recebe o contexto do projeto e os itens SWOT ja existentes, e sugere 3-5 novos itens para aquele quadrante especifico. O usuario pode aceitar individualmente cada sugestao (clicando para adicionar) ou descartar.
 
-| Projeto | Area | Meta/Indicador |
-|---------|------|----------------|
-| Sustentabilidade CBS1 - Nivel 80% | Financeiro | 80% |
-| Obras de Infraestrutura CBS2 | Infraestrutura | Inicio confirmado |
-| Lancamento de 2 Pontos Satelites | Ministerial | 2 pontos |
-| Campanha Doacao Recorrente (35% receita) | Relacionamento e Captacao | 35% |
+### 3. Sugestoes IA para Etapas
 
-### Ano 2029 -- Maturidade (5 projetos)
-
-| Projeto | Area | Meta/Indicador |
-|---------|------|----------------|
-| Certificacao de Qualidade de Gestao | Gestao e Operacoes | Score 85%+ |
-| Sustentabilidade CBS2 50% + Reserva 6 Meses | Financeiro | 50% + 6 meses |
-| Lancamento de 3 Programas Ministeriais | Ministerial | 3 programas |
-| Frequencia Presencial Media 3.000 | Ministerial | Media semanal 3.000 |
-| Plano Estrategico 2030-2033 | Gestao e Operacoes | 100% conclusao |
-
-## Ajustes no Dashboard
-
-Remover a mensagem "Nenhum projeto cadastrado" e garantir que os graficos carreguem com os novos dados. Ajustar titulo para "Gestao de Projetos" no cabecalho.
+Um botao "Sugerir Etapas" no card de etapas. A IA analisa o projeto e as etapas existentes e sugere novas etapas que estejam faltando, com nomes e descricoes. O usuario pode aceitar cada sugestao individualmente.
 
 ## Detalhes Tecnicos
 
-### Insercao de dados (via ferramenta de insert, nao migracao)
+### Edge Function: `ai-project-assistant`
 
-Serao 20 comandos `INSERT` na tabela `projetos`, cada um com:
-- `nome`: titulo descritivo do projeto
-- `descricao`: descricao do alvo + meta + indicador
-- `area_id`: UUID da area estrategica correspondente
-- `objetivo_id`: UUID do objetivo estrategico do ano
-- `status`: `nao_iniciado` (projetos 2027-2029) ou `em_andamento` (projetos 2026)
-- `data_inicio`: 01/01 do ano correspondente
-- `data_fim`: 31/12 do ano correspondente
-- `orcamento_previsto`: 0 (sera definido depois pela coordenacao)
+Uma unica edge function com diferentes "modos" de operacao:
 
-### Arquivos modificados
+```text
+POST /ai-project-assistant
+Body: { mode: "analise" | "swot" | "etapas", context: {...} }
+```
 
-- `src/pages/Dashboard.tsx` -- Ajuste no titulo principal de "Dashboard Estrategico" para "Gestao de Projetos CBRio" e garantir que os graficos funcionem com os dados populados
+- **mode "analise"**: Recebe dados completos do projeto, retorna analise em markdown
+- **mode "swot"**: Recebe dados do projeto + tipo do quadrante + itens existentes, retorna array de sugestoes via tool calling
+- **mode "etapas"**: Recebe dados do projeto + etapas existentes, retorna array de etapas sugeridas via tool calling
 
-### Nenhuma mudanca de schema necessaria
+A funcao usa `LOVABLE_API_KEY` (ja configurada) para chamar `https://ai.gateway.lovable.dev/v1/chat/completions` com o modelo `google/gemini-3-flash-preview`.
 
-A tabela `projetos` ja possui todas as colunas necessarias. Nao ha necessidade de migracao SQL.
+Para os modos "swot" e "etapas", sera usado tool calling para extrair output estruturado (array de sugestoes). Para o modo "analise", sera usado streaming SSE para exibir a resposta token a token.
+
+### Arquivos a criar
+
+- `supabase/functions/ai-project-assistant/index.ts` -- Edge function com 3 modos
+
+### Arquivos a modificar
+
+- `src/pages/ProjetoDetalhe.tsx` -- Adicionar botao "Sugestoes IA" no cabecalho, dialog com resultado streaming, botao "Sugerir Etapas" no card de etapas
+- `src/components/projetos/SWOTMatrix.tsx` -- Adicionar botao "Sugerir com IA" por quadrante, lista de sugestoes com botao aceitar/descartar
+- `supabase/config.toml` -- Registrar a nova edge function com `verify_jwt = false`
+
+### Componentes de UI
+
+- Dialog de analise IA com streaming de markdown (usando `react-markdown` -- sera necessario instalar)
+- Lista de sugestoes SWOT com botoes "Adicionar" / "Descartar" por item
+- Lista de sugestoes de etapas com botoes "Adicionar" / "Descartar" por item
+- Indicador de loading (spinner) durante a chamada da IA
+- Icone de "Sparkles" (lucide) para identificar funcionalidades de IA
+
+### Fluxo do usuario
+
+1. Abre um projeto
+2. Clica em "Sugestoes IA" no topo -- ve uma analise completa do projeto com riscos, recomendacoes e proximos passos
+3. Na SWOT, clica "Sugerir" em um quadrante -- ve 3-5 sugestoes, clica para adicionar as que quiser
+4. Nas etapas, clica "Sugerir Etapas" -- ve sugestoes de etapas faltantes, clica para adicionar
+
+### Seguranca
+
+- A edge function valida o JWT do usuario (autenticacao obrigatoria)
+- `LOVABLE_API_KEY` nunca e exposta no frontend
+- O prompt do sistema e definido apenas no backend, nao no cliente
+- Erros 429 (rate limit) e 402 (creditos) sao tratados e exibidos como toast no frontend
