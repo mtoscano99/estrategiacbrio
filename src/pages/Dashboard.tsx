@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -9,7 +9,7 @@ import {
   Clock,
   AlertTriangle,
   CheckCircle2,
-  TrendingUp,
+  
   BarChart3,
 } from "lucide-react";
 import {
@@ -40,12 +40,7 @@ const STATUS_COLORS = {
   cancelado: "hsl(215, 15%, 70%)",
 };
 
-const YEARS = [
-  { ano: 2026, tema: "Unidade" },
-  { ano: 2027, tema: "Reavaliação" },
-  { ano: 2028, tema: "Escalonamento" },
-  { ano: 2029, tema: "Maturidade" },
-];
+
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -136,34 +131,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Timeline */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Linha do Tempo Estratégica
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between px-4">
-            {YEARS.map((y, i) => (
-              <div key={y.ano} className="flex flex-col items-center flex-1">
-                <div className="flex items-center w-full">
-                  {i > 0 && <div className="flex-1 h-0.5 bg-border" />}
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${y.ano === 2026 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                    {y.ano.toString().slice(2)}
-                  </div>
-                  {i < YEARS.length - 1 && <div className="flex-1 h-0.5 bg-border" />}
-                </div>
-                <p className="text-sm font-semibold mt-2">{y.ano}</p>
-                <Badge variant="secondary" className="mt-1 text-xs">
-                  {y.tema}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
