@@ -198,7 +198,11 @@ export default function Calendario() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setCurrentDate(new Date())}
+            onClick={() => {
+              const today = new Date();
+              setCurrentDate(today);
+              setSelectedDay(today);
+            }}
           >
             Hoje
           </Button>
