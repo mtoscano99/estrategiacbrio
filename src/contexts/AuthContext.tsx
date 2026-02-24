@@ -9,6 +9,11 @@ interface Profile {
   nome: string;
   email: string;
   area_id: string | null;
+  avatar_url: string | null;
+  cargo: string | null;
+  data_nascimento: string | null;
+  telefone: string | null;
+  email_contato: string | null;
 }
 
 interface AuthContextType {
@@ -21,6 +26,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshRole: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   isCoordination: boolean;
 }
 
@@ -39,10 +45,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("id, nome, email, area_id")
+      .select("id, nome, email, area_id, avatar_url, cargo, data_nascimento, telefone, email_contato")
       .eq("id", userId)
       .single();
-    if (data) setProfile(data);
+    if (data) setProfile(data as any);
+  };
+
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.id);
+    }
   };
 
   const fetchRole = async (userId: string) => {
@@ -122,6 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn,
         signOut,
         refreshRole,
+        refreshProfile,
         isCoordination: role === "coordenacao",
       }}
     >

@@ -390,26 +390,41 @@ export type Database = {
       profiles: {
         Row: {
           area_id: string | null
+          avatar_url: string | null
+          cargo: string | null
           created_at: string
+          data_nascimento: string | null
           email: string
+          email_contato: string | null
           id: string
           nome: string
+          telefone: string | null
           updated_at: string
         }
         Insert: {
           area_id?: string | null
+          avatar_url?: string | null
+          cargo?: string | null
           created_at?: string
+          data_nascimento?: string | null
           email: string
+          email_contato?: string | null
           id: string
           nome: string
+          telefone?: string | null
           updated_at?: string
         }
         Update: {
           area_id?: string | null
+          avatar_url?: string | null
+          cargo?: string | null
           created_at?: string
+          data_nascimento?: string | null
           email?: string
+          email_contato?: string | null
           id?: string
           nome?: string
+          telefone?: string | null
           updated_at?: string
         }
         Relationships: [

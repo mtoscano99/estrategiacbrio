@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import ReactMarkdown from "react-markdown";
 import SWOTMatrix from "@/components/projetos/SWOTMatrix";
+import { UserAvatar } from "@/components/UserAvatar";
 
 const STATUS_LABELS: Record<string, string> = {
   nao_iniciado: "Não Iniciado",
@@ -59,7 +60,7 @@ export default function ProjetoDetalhe() {
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
       supabase.from("etapas_projeto").select("*").eq("projeto_id", id).order("ordem"),
       supabase.from("comentarios").select("*, profiles!comentarios_autor_id_fkey(nome)").eq("projeto_id", id).order("created_at", { ascending: false }),
-      supabase.from("profiles").select("id, nome"),
+      supabase.from("profiles").select("id, nome, avatar_url"),
     ]);
     if (projetoRes.data) setProjeto(projetoRes.data);
     if (etapasRes.data) setEtapas(etapasRes.data);
@@ -355,7 +356,14 @@ export default function ProjetoDetalhe() {
                   <Select value={novaEtapa.responsavel_id} onValueChange={(val) => setNovaEtapa({ ...novaEtapa, responsavel_id: val })}>
                     <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                     <SelectContent>
-                      {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                      {profiles.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <div className="flex items-center gap-2">
+                            <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
+                            <span>{p.nome}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -448,7 +456,14 @@ export default function ProjetoDetalhe() {
                             <Select value={etapa.responsavel_id || ""} onValueChange={(val) => updateEtapa(etapa.id, "responsavel_id", val)}>
                               <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                               <SelectContent>
-                                {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                                {profiles.map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    <div className="flex items-center gap-2">
+                                      <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
+                                      <span>{p.nome}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
