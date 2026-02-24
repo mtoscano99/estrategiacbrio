@@ -2,3 +2,6 @@ project_id = "khpqamukrduodzefzcmm"
 
 [functions.assign-role]
 verify_jwt = false
+
+[functions.ai-project-assistant]
+verify_jwt = false

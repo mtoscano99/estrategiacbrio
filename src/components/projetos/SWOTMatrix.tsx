@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, X, Shield, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, X, Shield, AlertTriangle, TrendingUp, TrendingDown, Sparkles, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 type SwotTipo = "forca" | "fraqueza" | "oportunidade" | "ameaca";
@@ -13,6 +13,10 @@ interface SwotItem {
   id: string;
   tipo: SwotTipo;
   descricao: string;
+}
+
+interface SwotSuggestion {
+  text: string;
 }
 
 const QUADRANTES: {
@@ -31,13 +35,20 @@ const QUADRANTES: {
 
 interface SWOTMatrixProps {
   projetoId: string;
+  projectContext?: any;
 }
 
-export default function SWOTMatrix({ projetoId }: SWOTMatrixProps) {
+export default function SWOTMatrix({ projetoId, projectContext }: SWOTMatrixProps) {
   const { user } = useAuth();
   const [items, setItems] = useState<SwotItem[]>([]);
   const [newTexts, setNewTexts] = useState<Record<SwotTipo, string>>({
     forca: "", fraqueza: "", oportunidade: "", ameaca: "",
+  });
+  const [loadingSuggestions, setLoadingSuggestions] = useState<Record<SwotTipo, boolean>>({
+    forca: false, fraqueza: false, oportunidade: false, ameaca: false,
+  });
+  const [suggestions, setSuggestions] = useState<Record<SwotTipo, SwotSuggestion[]>>({
+    forca: [], fraqueza: [], oportunidade: [], ameaca: [],
   });
 
   useEffect(() => {
@@ -53,17 +64,17 @@ export default function SWOTMatrix({ projetoId }: SWOTMatrixProps) {
     if (data) setItems(data as SwotItem[]);
   };
 
-  const addItem = async (tipo: SwotTipo) => {
-    const text = newTexts[tipo].trim();
-    if (!text || !user) return;
+  const addItem = async (tipo: SwotTipo, text?: string) => {
+    const desc = text || newTexts[tipo].trim();
+    if (!desc || !user) return;
     const { error } = await supabase.from("swot_items").insert({
       projeto_id: projetoId,
       tipo,
-      descricao: text,
+      descricao: desc,
       criado_por: user.id,
     } as any);
     if (error) { toast.error("Erro ao adicionar item"); return; }
-    setNewTexts((prev) => ({ ...prev, [tipo]: "" }));
+    if (!text) setNewTexts((prev) => ({ ...prev, [tipo]: "" }));
     loadItems();
   };
 
@@ -71,6 +82,54 @@ export default function SWOTMatrix({ projetoId }: SWOTMatrixProps) {
     const { error } = await supabase.from("swot_items").delete().eq("id", id);
     if (error) { toast.error("Erro ao remover item"); return; }
     loadItems();
+  };
+
+  const suggestWithAI = async (tipo: SwotTipo) => {
+    if (!projectContext) {
+      toast.error("Contexto do projeto não disponível");
+      return;
+    }
+    setLoadingSuggestions((prev) => ({ ...prev, [tipo]: true }));
+    setSuggestions((prev) => ({ ...prev, [tipo]: [] }));
+
+    try {
+      const quadItems = items.filter((i) => i.tipo === tipo).map((i) => i.descricao);
+      const resp = await supabase.functions.invoke("ai-project-assistant", {
+        body: {
+          mode: "swot",
+          context: { ...projectContext, tipo, existingItems: quadItems },
+        },
+      });
+
+      if (resp.error) throw new Error(resp.error.message);
+      const data = resp.data;
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+      setSuggestions((prev) => ({ ...prev, [tipo]: data?.suggestions || [] }));
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao obter sugestões");
+    } finally {
+      setLoadingSuggestions((prev) => ({ ...prev, [tipo]: false }));
+    }
+  };
+
+  const acceptSuggestion = async (tipo: SwotTipo, index: number) => {
+    const s = suggestions[tipo][index];
+    await addItem(tipo, s.text);
+    setSuggestions((prev) => ({
+      ...prev,
+      [tipo]: prev[tipo].filter((_, i) => i !== index),
+    }));
+    toast.success("Item adicionado");
+  };
+
+  const dismissSuggestion = (tipo: SwotTipo, index: number) => {
+    setSuggestions((prev) => ({
+      ...prev,
+      [tipo]: prev[tipo].filter((_, i) => i !== index),
+    }));
   };
 
   return (
@@ -82,11 +141,25 @@ export default function SWOTMatrix({ projetoId }: SWOTMatrixProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {QUADRANTES.map(({ tipo, label, icon: Icon, bgClass, borderClass, iconClass }) => {
             const quadItems = items.filter((i) => i.tipo === tipo);
+            const tipSuggestions = suggestions[tipo];
+            const isLoading = loadingSuggestions[tipo];
             return (
               <div key={tipo} className={`rounded-lg border p-4 ${bgClass} ${borderClass}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Icon className={`h-5 w-5 ${iconClass}`} />
-                  <h4 className="font-semibold text-sm">{label}</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Icon className={`h-5 w-5 ${iconClass}`} />
+                    <h4 className="font-semibold text-sm">{label}</h4>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => suggestWithAI(tipo)}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    Sugerir
+                  </Button>
                 </div>
                 <ul className="space-y-1.5 mb-3 min-h-[32px]">
                   {quadItems.map((item) => (
@@ -100,10 +173,31 @@ export default function SWOTMatrix({ projetoId }: SWOTMatrixProps) {
                       </button>
                     </li>
                   ))}
-                  {quadItems.length === 0 && (
+                  {quadItems.length === 0 && tipSuggestions.length === 0 && (
                     <li className="text-xs text-muted-foreground italic">Nenhum item</li>
                   )}
                 </ul>
+
+                {/* AI Suggestions */}
+                {tipSuggestions.length > 0 && (
+                  <div className="space-y-1.5 mb-3 border-t border-dashed pt-2">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" /> Sugestões da IA
+                    </p>
+                    {tipSuggestions.map((s, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-sm bg-background/40 rounded px-2 py-1">
+                        <span className="flex-1">{s.text}</span>
+                        <button onClick={() => acceptSuggestion(tipo, i)} className="text-emerald-600 hover:text-emerald-700 shrink-0">
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => dismissSuggestion(tipo, i)} className="text-muted-foreground hover:text-destructive shrink-0">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex gap-1.5">
                   <Input
                     placeholder="Novo item..."
