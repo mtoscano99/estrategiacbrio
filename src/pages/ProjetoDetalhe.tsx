@@ -152,6 +152,9 @@ function SortableEtapaItem({
                     {etapa.data_fim && (
                       <span className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(etapa.data_fim), "dd/MM/yyyy")}</span>
                     )}
+                    {Number(etapa.valor_gasto) > 0 && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign className="h-3 w-3" />{Number(etapa.valor_gasto).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                    )}
                   </div>
                 </div>
                 <Badge variant={etapa.status === "atrasado" ? "destructive" : etapa.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
@@ -172,7 +175,7 @@ function SortableEtapaItem({
                   onBlur={(e) => { if (e.target.value !== (etapa.descricao || "")) updateEtapa(etapa.id, "descricao", e.target.value); }}
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Data Início</label>
                   <Input type="date" defaultValue={etapa.data_inicio || ""} onBlur={(e) => { if (e.target.value !== (etapa.data_inicio || "")) updateEtapa(etapa.id, "data_inicio", e.target.value); }} />
@@ -196,6 +199,10 @@ function SortableEtapaItem({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Valor Gasto (R$)</label>
+                  <Input type="number" step="0.01" min="0" defaultValue={etapa.valor_gasto || ""} placeholder="0,00" onBlur={(e) => { const val = parseFloat(e.target.value) || 0; if (val !== (Number(etapa.valor_gasto) || 0)) updateEtapa(etapa.id, "valor_gasto", val); }} />
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -229,7 +236,7 @@ export default function ProjetoDetalhe() {
   const [comentarios, setComentarios] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [novoComentario, setNovoComentario] = useState("");
-  const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "" });
+  const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", valor_gasto: "" });
   const [showAddEtapa, setShowAddEtapa] = useState(false);
   const [expandedEtapa, setExpandedEtapa] = useState<string | null>(null);
 
@@ -396,10 +403,11 @@ export default function ProjetoDetalhe() {
       data_inicio: novaEtapa.data_inicio || null,
       data_fim: novaEtapa.data_fim || null,
       responsavel_id: novaEtapa.responsavel_id || null,
+      valor_gasto: parseFloat(novaEtapa.valor_gasto) || 0,
       ordem: etapas.length,
     } as any);
     if (error) { toast.error("Erro ao adicionar etapa"); return; }
-    setNovaEtapa({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "" });
+    setNovaEtapa({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", valor_gasto: "" });
     setShowAddEtapa(false);
     loadData();
     toast.success("Etapa adicionada");
@@ -566,7 +574,7 @@ export default function ProjetoDetalhe() {
             <div className="space-y-3 p-4 rounded-lg bg-muted">
               <Input placeholder="Nome da etapa" value={novaEtapa.nome} onChange={(e) => setNovaEtapa({ ...novaEtapa, nome: e.target.value })} />
               <Textarea placeholder="Descrição (opcional)" value={novaEtapa.descricao} onChange={(e) => setNovaEtapa({ ...novaEtapa, descricao: e.target.value })} className="min-h-[60px]" />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Início</label>
                   <Input type="date" value={novaEtapa.data_inicio} onChange={(e) => setNovaEtapa({ ...novaEtapa, data_inicio: e.target.value })} />
@@ -590,6 +598,10 @@ export default function ProjetoDetalhe() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Valor Gasto (R$)</label>
+                  <Input type="number" step="0.01" min="0" value={novaEtapa.valor_gasto} onChange={(e) => setNovaEtapa({ ...novaEtapa, valor_gasto: e.target.value })} placeholder="0,00" />
                 </div>
               </div>
               <Button size="sm" onClick={addEtapa}>Adicionar</Button>

@@ -203,6 +203,7 @@ export type Database = {
           responsavel_id: string | null
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
+          valor_gasto: number | null
         }
         Insert: {
           created_at?: string
@@ -216,6 +217,7 @@ export type Database = {
           responsavel_id?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
+          valor_gasto?: number | null
         }
         Update: {
           created_at?: string
@@ -229,6 +231,7 @@ export type Database = {
           responsavel_id?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
+          valor_gasto?: number | null
         }
         Relationships: [
           {
