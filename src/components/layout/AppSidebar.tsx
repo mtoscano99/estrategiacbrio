@@ -11,6 +11,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -26,6 +27,7 @@ const navItems = [
   { to: "/aprovacoes", label: "Aprovações", icon: CheckSquare, coordOnly: true },
   { to: "/planejamento", label: "Planejamento Estratégico", icon: Target },
   { to: "/relatorios", label: "Relatórios", icon: FileBarChart },
+  { to: "/relatorios/financeiro", label: "Financeiro", icon: DollarSign },
 ];
 
 export function AppSidebar() {
@@ -61,7 +63,9 @@ export function AppSidebar() {
         {navItems
           .filter((item) => !item.coordOnly || isCoordination)
           .map((item) => {
-            const isActive = location.pathname.startsWith(item.to);
+            const isActive = item.to === "/relatorios"
+              ? location.pathname === "/relatorios"
+              : location.pathname.startsWith(item.to);
             return (
               <NavLink
                 key={item.to}
