@@ -56,12 +56,19 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      const { error } = await lovable.auth.signInWithOAuth("google", {
+      const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
       });
-      if (error) {
-        toast.error("Erro ao entrar com Google");
+      if (result && 'redirected' in result && result.redirected) {
+        // User was redirected to Google, page will reload on return
+        return;
       }
+      if (result && 'error' in result && result.error) {
+        toast.error("Erro ao entrar com Google");
+        return;
+      }
+      // Login succeeded via popup - navigate explicitly
+      navigate("/dashboard");
     } catch (error: any) {
       toast.error(error.message || "Erro ao entrar com Google");
     } finally {
