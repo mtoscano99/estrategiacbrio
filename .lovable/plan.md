@@ -1,61 +1,71 @@
 
 
-## Dashboard Financeiro Consolidado
+## Acompanhamento de Alvos e KPIs no Planejamento Estratégico
 
-### Objetivo
-Adicionar uma secao financeira ao Dashboard principal com visao consolidada de orcamento vs gasto, % de consumo por area estrategica e graficos comparativos. Tudo na pagina `Dashboard.tsx` existente, sem criar pagina nova.
+### Situação Atual
+- A tabela `alvos_pe` armazena metas textuais vinculadas a objetivos estratégicos (ex: "Sustentabilidade do CBS1 nível 80%", meta: "80%")
+- A tabela `kpis` armazena indicadores mensuráveis com medições numéricas (`kpi_medicoes`), e já possui campo `objetivo_id` para vincular ao mesmo objetivo
+- Na página de PE, os alvos aparecem como texto estático sem progresso
+- A página de KPIs existe separadamente em `/kpis`
 
-### O que sera adicionado
+### O que será feito
 
-**1. Cards financeiros (nova linha apos os cards existentes de status)**
-- Orcamento Total (soma de `orcamento_previsto` de todos os projetos)
-- Total Gasto (soma de `valor_gasto`)
-- Saldo Restante (orcamento - gasto)
-- % Consumo Geral (gasto / orcamento * 100)
+**1. Vincular alvos a KPIs na página de Planejamento Estratégico**
 
-**2. Grafico de barras comparativo: Orcamento vs Gasto por Area**
-- Barras lado a lado (grouped bar chart) usando Recharts
-- Eixo X: areas estrategicas
-- Duas barras por area: orcamento (azul) e gasto (vermelho/laranja)
-- Tooltip com valores formatados em BRL
+Para cada alvo exibido dentro de um objetivo, buscar os KPIs vinculados ao mesmo objetivo e exibir o progresso real ao lado do alvo.
 
-**3. Grafico de barras horizontal: % Consumo por Area**
-- Barra horizontal mostrando a porcentagem consumida de cada area
-- Cores condicionais: verde (<50%), amarelo (50-80%), vermelho (>80%)
+**2. Adicionar indicadores visuais de progresso em cada alvo**
 
-### Detalhes Tecnicos
+Cada item de alvo passará a mostrar:
+- Barra de progresso (se houver KPI vinculado com medições)
+- Badge de status: "No alvo", "Abaixo", "Sem dados"
+- Último valor medido e a meta
+- Link direto para o KPI detalhado (`/kpis/:id`)
 
-**Arquivo: `src/pages/Dashboard.tsx`**
+**3. Adicionar resumo de progresso por objetivo**
 
-1. Alterar a query existente de projetos para incluir `orcamento_previsto` e `valor_gasto`:
-   - De: `select("id, status, area_id, areas_estrategicas(nome)")`
-   - Para: `select("id, status, area_id, orcamento_previsto, valor_gasto, areas_estrategicas(nome)")`
+No cabeçalho de cada objetivo (AccordionTrigger), mostrar:
+- Quantidade de alvos com KPI vinculado vs total
+- Percentual médio de atingimento dos alvos
 
-2. Adicionar novos estados:
-   - `financeiroTotal`: objeto com `orcamento`, `gasto`, `saldo`, `percentual`
-   - `financeiroPorArea`: array com `{ nome, orcamento, gasto, percentual }` para os graficos
+**4. Botão de ação para vincular/criar KPI**
 
-3. Processar dados financeiros dentro do `loadData` existente, junto com os dados de projetos ja carregados (sem query adicional ao banco)
+Para coordenadores, cada alvo sem KPI vinculado terá um botão "Criar KPI" que abre o dialog de criação de KPI já pré-preenchido com os dados do alvo (nome, meta, objetivo_id).
 
-4. Adicionar secao de cards financeiros apos os cards de KPI existentes, com icones `DollarSign`, `TrendingDown`, `Wallet`, `Percent`
+### Detalhes Técnicos
 
-5. Adicionar dois novos graficos na grid de graficos existente (ou em uma nova grid abaixo):
-   - BarChart agrupado (orcamento vs gasto por area) usando duas `<Bar>` com `dataKey` diferentes
-   - BarChart horizontal (% consumo por area) com barras coloridas condicionalmente
+**Arquivo: `src/pages/PlanejamentoEstrategico.tsx`**
 
-6. Funcao helper `fmtBRL` para formatar valores em Reais (reutilizando o padrao do Relatorios.tsx)
+1. Alterar a query para buscar KPIs junto com suas últimas medições:
+   - Adicionar: `supabase.from("kpis").select("id, nome, meta, unidade, objetivo_id")`
+   - Adicionar: `supabase.from("kpi_medicoes").select("kpi_id, valor, data_referencia").order("data_referencia", { ascending: true })`
 
-### Layout final do Dashboard (ordem dos blocos)
+2. Criar função helper `kpisForObjetivo(objId)` que retorna os KPIs do objetivo com sua última medição e percentual de progresso
+
+3. Para cada alvo renderizado, tentar associar um KPI pelo `objetivo_id` compartilhado. Exibir:
+   - `Progress` component com percentual (valor/meta * 100)
+   - Badge colorido de status
+   - Texto com valor atual vs meta
+   - Clique para navegar ao `/kpis/:id`
+
+4. No `AccordionTrigger` de cada objetivo, adicionar badge resumo (ex: "3/4 alvos no alvo")
+
+5. Importar `useNavigate`, `Progress`, `NovaMedicaoDialog` e `useAuth` para funcionalidades de navegação, progresso e criação
+
+**Nenhuma alteração de banco necessária** — os dados e relações já existem via `objetivo_id` em ambas as tabelas.
+
+### Layout visual de cada alvo (antes vs depois)
 
 ```text
-[Cards de Status: Total | Em Andamento | Atrasados | Concluidos]
-[Cards Financeiros: Orcamento | Gasto | Saldo | % Consumo]
-[Graficos: Projetos por Area | Status dos Projetos]
-[Graficos: Orcamento vs Gasto por Area | % Consumo por Area]
-[Proximos Marcos / Entregas]
-[Indicadores (KPIs)]
-```
+ANTES:
+| Sustentabilidade do CBS1 nível 80%     |
+| Meta: 80%                               |
+| Indicador: Percentual de sustentabilidade|
 
-### Nenhuma alteracao de banco necessaria
-Todos os dados ja existem nos campos `orcamento_previsto` e `valor_gasto` da tabela `projetos`.
+DEPOIS:
+| Sustentabilidade do CBS1 nível 80%    [No alvo] |
+| Meta: 80% · Atual: 72%                          |
+| ████████████████████░░░░  90%                    |
+| Indicador: Percentual de sustentabilidade  [→]   |
+```
 
