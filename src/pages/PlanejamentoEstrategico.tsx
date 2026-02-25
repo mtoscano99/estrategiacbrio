@@ -35,6 +35,7 @@ export default function PlanejamentoEstrategico() {
   const [alvos, setAlvos] = useState<any[]>([]);
   const [diagnostico, setDiagnostico] = useState<any[]>([]);
   const [kpisById, setKpisById] = useState<Record<string, KpiWithProgress>>({});
+  const [kpisByObjetivo, setKpisByObjetivo] = useState<Record<string, KpiWithProgress[]>>({});
 
   const fetchData = () => {
     Promise.all([
@@ -57,13 +58,14 @@ export default function PlanejamentoEstrategico() {
         }
 
         const byId: Record<string, KpiWithProgress> = {};
+        const byObj: Record<string, KpiWithProgress[]> = {};
         for (const kpi of kpisRes.data) {
           const med = medicoesByKpi[kpi.id];
           const ultimoValor = med ? med.valor : null;
           const percentual = ultimoValor !== null && kpi.meta > 0
             ? Math.round((ultimoValor / kpi.meta) * 100)
             : null;
-          byId[kpi.id] = {
+          const kpiData: KpiWithProgress = {
             id: kpi.id,
             nome: kpi.nome,
             meta: kpi.meta,
@@ -72,8 +74,14 @@ export default function PlanejamentoEstrategico() {
             ultimoValor,
             percentual,
           };
+          byId[kpi.id] = kpiData;
+          if (kpi.objetivo_id) {
+            if (!byObj[kpi.objetivo_id]) byObj[kpi.objetivo_id] = [];
+            byObj[kpi.objetivo_id].push(kpiData);
+          }
         }
         setKpisById(byId);
+        setKpisByObjetivo(byObj);
       }
     });
   };
@@ -82,9 +90,27 @@ export default function PlanejamentoEstrategico() {
 
   const objByYear = (year: number) => objetivos.filter((o) => o.ano === year);
   const alvosForObj = (objId: string) => alvos.filter((a) => a.objetivo_id === objId);
+
+  // Match KPI: first by direct kpi_id, then fallback to objetivo_id match by name
   const getKpiForAlvo = (alvo: any): KpiWithProgress | null => {
+    // 1. Direct link via kpi_id
     if (alvo.kpi_id && kpisById[alvo.kpi_id]) return kpisById[alvo.kpi_id];
-    return null;
+
+    // 2. Fallback: match by objetivo_id and try to find by indicator name similarity
+    const objKpis = kpisByObjetivo[alvo.objetivo_id] || [];
+    if (objKpis.length === 0) return null;
+    if (objKpis.length === 1) return objKpis[0];
+
+    // Try name matching
+    if (alvo.indicador) {
+      const match = objKpis.find(k =>
+        k.nome.toLowerCase().includes(alvo.indicador.toLowerCase()) ||
+        alvo.indicador.toLowerCase().includes(k.nome.toLowerCase())
+      );
+      if (match) return match;
+    }
+
+    return objKpis[0];
   };
 
   const getStatusBadge = (percentual: number | null) => {
@@ -99,8 +125,17 @@ export default function PlanejamentoEstrategico() {
     if (objAlvos.length === 0) return null;
     const linked = objAlvos.map(a => getKpiForAlvo(a)).filter(Boolean) as KpiWithProgress[];
     if (linked.length === 0) return null;
-    const onTarget = linked.filter(k => k.percentual !== null && k.percentual >= 90).length;
-    return { onTarget, total: linked.length };
+    const withData = linked.filter(k => k.percentual !== null);
+    const onTarget = withData.filter(k => k.percentual! >= 90).length;
+    return { onTarget, withData: withData.length, total: objAlvos.length };
+  };
+
+  // Parse numeric meta from alvo text (e.g., "80%" -> 80)
+  const parseAlvoMeta = (meta: string | null): number | undefined => {
+    if (!meta) return undefined;
+    const match = meta.match(/[\d.,]+/);
+    if (match) return parseFloat(match[0].replace(",", "."));
+    return undefined;
   };
 
   const diagCategories = [...new Set(diagnostico.map((d) => d.categoria))];
@@ -153,7 +188,7 @@ export default function PlanejamentoEstrategico() {
                               </div>
                               {summary && (
                                 <Badge variant="secondary" className="text-xs ml-2 shrink-0">
-                                  {summary.onTarget}/{summary.total} no alvo
+                                  {summary.onTarget}/{summary.withData} no alvo · {summary.total} alvos
                                 </Badge>
                               )}
                             </div>
@@ -170,7 +205,7 @@ export default function PlanejamentoEstrategico() {
                                     <div key={alvo.id} className="pl-4 border-l-2 border-primary/20 py-2 space-y-2">
                                       <div className="flex items-start justify-between gap-2">
                                         <p className="text-sm font-medium">{alvo.descricao}</p>
-                                        {matchedKpi ? getStatusBadge(matchedKpi.percentual) : getStatusBadge(null)}
+                                        {getStatusBadge(matchedKpi?.percentual ?? null)}
                                       </div>
 
                                       {matchedKpi && matchedKpi.ultimoValor !== null ? (
@@ -203,7 +238,21 @@ export default function PlanejamentoEstrategico() {
                                             Ver KPI <ExternalLink className="h-3 w-3" />
                                           </Button>
                                         ) : role === "coordenacao" ? (
-                                          <NovoKPIDialog onCreated={fetchData} />
+                                          <NovoKPIDialog
+                                            onCreated={fetchData}
+                                            prefill={{
+                                              nome: alvo.indicador || alvo.descricao,
+                                              meta: parseAlvoMeta(alvo.meta),
+                                              unidade: alvo.meta?.includes("%") ? "%" : undefined,
+                                              objetivo_id: alvo.objetivo_id,
+                                              alvo_id: alvo.id,
+                                            }}
+                                            trigger={
+                                              <Button variant="outline" size="sm" className="h-6 text-xs gap-1">
+                                                <Plus className="h-3 w-3" /> Criar KPI
+                                              </Button>
+                                            }
+                                          />
                                         ) : null}
                                       </div>
                                     </div>
