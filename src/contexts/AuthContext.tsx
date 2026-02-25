@@ -78,11 +78,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    let initialSessionHandled = false;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
+          // Use setTimeout to avoid potential deadlocks with Supabase auth
           setTimeout(() => {
             fetchProfile(session.user.id);
             fetchRole(session.user.id);
@@ -90,25 +93,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           setProfile(null);
           setRole(null);
-          setRoleChecked(false);
+          setRoleChecked(true);
         }
-        setLoading(false);
+        if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+          initialSessionHandled = true;
+          setLoading(false);
+        }
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-        fetchRole(session.user.id);
-      } else {
-        setRoleChecked(true);
+    // Fallback: if onAuthStateChange doesn't fire INITIAL_SESSION within 2s
+    const timeout = setTimeout(() => {
+      if (!initialSessionHandled) {
+        initialSessionHandled = true;
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          setSession(session);
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            fetchProfile(session.user.id);
+            fetchRole(session.user.id);
+          } else {
+            setRoleChecked(true);
+          }
+          setLoading(false);
+        });
       }
-      setLoading(false);
-    });
+    }, 2000);
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
