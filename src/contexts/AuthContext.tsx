@@ -81,20 +81,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let initialSessionHandled = false;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+
         if (session?.user) {
-          await fetchProfile(session.user.id);
-          await fetchRole(session.user.id);
+          const userId = session.user.id;
+          // Defer DB calls to avoid blocking the auth callback (prevents deadlocks)
+          // but keep loading=true until both complete (prevents race condition)
+          Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
+            if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+              initialSessionHandled = true;
+              setLoading(false);
+            }
+          });
         } else {
           setProfile(null);
           setRole(null);
           setRoleChecked(true);
-        }
-        if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-          initialSessionHandled = true;
-          setLoading(false);
+          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+            initialSessionHandled = true;
+            setLoading(false);
+          }
         }
       }
     );
