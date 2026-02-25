@@ -20,6 +20,7 @@ export type Database = {
           descricao: string
           id: string
           indicador: string | null
+          kpi_id: string | null
           meta: string | null
           objetivo_id: string
         }
@@ -28,6 +29,7 @@ export type Database = {
           descricao: string
           id?: string
           indicador?: string | null
+          kpi_id?: string | null
           meta?: string | null
           objetivo_id: string
         }
@@ -36,10 +38,18 @@ export type Database = {
           descricao?: string
           id?: string
           indicador?: string | null
+          kpi_id?: string | null
           meta?: string | null
           objetivo_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "alvos_pe_kpi_id_fkey"
+            columns: ["kpi_id"]
+            isOneToOne: false
+            referencedRelation: "kpis"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "alvos_pe_objetivo_id_fkey"
             columns: ["objetivo_id"]
