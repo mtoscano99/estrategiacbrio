@@ -87,14 +87,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (session?.user) {
           const userId = session.user.id;
-          // Defer DB calls to avoid blocking the auth callback (prevents deadlocks)
-          // but keep loading=true until both complete (prevents race condition)
-          Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
-            if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-              initialSessionHandled = true;
-              setLoading(false);
-            }
-          });
+          // Defer DB calls to next tick so Supabase client sets auth headers first
+          setTimeout(() => {
+            Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
+              if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+                initialSessionHandled = true;
+                setLoading(false);
+              }
+            });
+          }, 0);
         } else {
           setProfile(null);
           setRole(null);
