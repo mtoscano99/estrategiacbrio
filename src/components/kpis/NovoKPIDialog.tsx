@@ -30,10 +30,20 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 interface Props {
-  onCreated: () => void;
+  onCreated: (kpiId?: string) => void;
+  /** Pre-fill values for creating KPI from an alvo */
+  prefill?: {
+    nome?: string;
+    meta?: number;
+    unidade?: string;
+    objetivo_id?: string;
+    alvo_id?: string;
+  };
+  /** Custom trigger button */
+  trigger?: React.ReactNode;
 }
 
-export function NovoKPIDialog({ onCreated }: Props) {
+export function NovoKPIDialog({ onCreated, prefill, trigger }: Props) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [areas, setAreas] = useState<{ id: string; nome: string }[]>([]);
@@ -41,7 +51,13 @@ export function NovoKPIDialog({ onCreated }: Props) {
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { unidade: "%", periodicidade: "mensal", meta: 0 },
+    defaultValues: {
+      unidade: prefill?.unidade || "%",
+      periodicidade: "mensal",
+      meta: prefill?.meta || 0,
+      nome: prefill?.nome || "",
+      objetivo_id: prefill?.objetivo_id || undefined,
+    },
   });
 
   const selectedArea = watch("area_id");
@@ -50,15 +66,23 @@ export function NovoKPIDialog({ onCreated }: Props) {
     if (open) {
       supabase.from("areas_estrategicas").select("id, nome").order("nome").then(({ data }) => data && setAreas(data));
       supabase.from("objetivos_estrategicos").select("id, titulo, area_id").order("titulo").then(({ data }) => data && setObjetivos(data));
+
+      // Apply prefill values when dialog opens
+      if (prefill) {
+        if (prefill.nome) setValue("nome", prefill.nome);
+        if (prefill.meta) setValue("meta", prefill.meta);
+        if (prefill.unidade) setValue("unidade", prefill.unidade);
+        if (prefill.objetivo_id) setValue("objetivo_id", prefill.objetivo_id);
+      }
     }
-  }, [open]);
+  }, [open, prefill, setValue]);
 
   const filteredObjetivos = selectedArea
     ? objetivos.filter((o) => o.area_id === selectedArea)
     : objetivos;
 
   const onSubmit = async (values: FormData) => {
-    const { error } = await supabase.from("kpis").insert({
+    const { data, error } = await supabase.from("kpis").insert({
       nome: values.nome,
       descricao: values.descricao || null,
       unidade: values.unidade,
@@ -67,22 +91,28 @@ export function NovoKPIDialog({ onCreated }: Props) {
       objetivo_id: values.objetivo_id || null,
       periodicidade: values.periodicidade,
       criado_por: user?.id || null,
-    } as any);
+    } as any).select("id").single();
 
     if (error) {
       toast({ title: "Erro ao criar KPI", description: error.message, variant: "destructive" });
       return;
     }
+
+    // Auto-link kpi_id on the alvo if prefill.alvo_id is provided
+    if (data?.id && prefill?.alvo_id) {
+      await supabase.from("alvos_pe").update({ kpi_id: data.id } as any).eq("id", prefill.alvo_id);
+    }
+
     toast({ title: "KPI criado com sucesso!" });
     reset();
     setOpen(false);
-    onCreated();
+    onCreated(data?.id);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button><Plus className="h-4 w-4 mr-2" />Novo KPI</Button>
+        {trigger || <Button><Plus className="h-4 w-4 mr-2" />Novo KPI</Button>}
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
@@ -132,7 +162,10 @@ export function NovoKPIDialog({ onCreated }: Props) {
           </div>
           <div>
             <Label>Objetivo Estratégico</Label>
-            <Select onValueChange={(v) => setValue("objetivo_id", v)}>
+            <Select
+              value={watch("objetivo_id") || undefined}
+              onValueChange={(v) => setValue("objetivo_id", v)}
+            >
               <SelectTrigger><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
               <SelectContent>
                 {filteredObjetivos.map((o) => <SelectItem key={o.id} value={o.id}>{o.titulo}</SelectItem>)}
