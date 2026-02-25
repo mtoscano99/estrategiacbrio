@@ -34,7 +34,7 @@ export default function PlanejamentoEstrategico() {
   const [objetivos, setObjetivos] = useState<any[]>([]);
   const [alvos, setAlvos] = useState<any[]>([]);
   const [diagnostico, setDiagnostico] = useState<any[]>([]);
-  const [kpisMap, setKpisMap] = useState<Record<string, KpiWithProgress[]>>({});
+  const [kpisById, setKpisById] = useState<Record<string, KpiWithProgress>>({});
 
   const fetchData = () => {
     Promise.all([
@@ -49,7 +49,6 @@ export default function PlanejamentoEstrategico() {
       if (diagRes.data) setDiagnostico(diagRes.data);
 
       if (kpisRes.data && medicoesRes.data) {
-        // Build map: objetivo_id -> KpiWithProgress[]
         const medicoesByKpi: Record<string, { valor: number }> = {};
         for (const m of medicoesRes.data) {
           if (!medicoesByKpi[m.kpi_id]) {
@@ -57,16 +56,14 @@ export default function PlanejamentoEstrategico() {
           }
         }
 
-        const map: Record<string, KpiWithProgress[]> = {};
+        const byId: Record<string, KpiWithProgress> = {};
         for (const kpi of kpisRes.data) {
-          if (!kpi.objetivo_id) continue;
           const med = medicoesByKpi[kpi.id];
           const ultimoValor = med ? med.valor : null;
           const percentual = ultimoValor !== null && kpi.meta > 0
             ? Math.round((ultimoValor / kpi.meta) * 100)
             : null;
-          if (!map[kpi.objetivo_id]) map[kpi.objetivo_id] = [];
-          map[kpi.objetivo_id].push({
+          byId[kpi.id] = {
             id: kpi.id,
             nome: kpi.nome,
             meta: kpi.meta,
@@ -74,9 +71,9 @@ export default function PlanejamentoEstrategico() {
             objetivo_id: kpi.objetivo_id,
             ultimoValor,
             percentual,
-          });
+          };
         }
-        setKpisMap(map);
+        setKpisById(byId);
       }
     });
   };
@@ -85,7 +82,10 @@ export default function PlanejamentoEstrategico() {
 
   const objByYear = (year: number) => objetivos.filter((o) => o.ano === year);
   const alvosForObj = (objId: string) => alvos.filter((a) => a.objetivo_id === objId);
-  const kpisForObj = (objId: string): KpiWithProgress[] => kpisMap[objId] || [];
+  const getKpiForAlvo = (alvo: any): KpiWithProgress | null => {
+    if (alvo.kpi_id && kpisById[alvo.kpi_id]) return kpisById[alvo.kpi_id];
+    return null;
+  };
 
   const getStatusBadge = (percentual: number | null) => {
     if (percentual === null) return <Badge variant="outline" className="text-xs">Sem dados</Badge>;
@@ -96,12 +96,11 @@ export default function PlanejamentoEstrategico() {
 
   const getObjSummary = (objId: string) => {
     const objAlvos = alvosForObj(objId);
-    const objKpis = kpisForObj(objId);
     if (objAlvos.length === 0) return null;
-    const withKpi = objKpis.filter(k => k.percentual !== null).length;
-    const onTarget = objKpis.filter(k => k.percentual !== null && k.percentual >= 90).length;
-    if (objKpis.length === 0) return null;
-    return { withKpi, onTarget, total: objKpis.length };
+    const linked = objAlvos.map(a => getKpiForAlvo(a)).filter(Boolean) as KpiWithProgress[];
+    if (linked.length === 0) return null;
+    const onTarget = linked.filter(k => k.percentual !== null && k.percentual >= 90).length;
+    return { onTarget, total: linked.length };
   };
 
   const diagCategories = [...new Set(diagnostico.map((d) => d.categoria))];
@@ -165,12 +164,7 @@ export default function PlanejamentoEstrategico() {
                               <div className="space-y-3">
                                 <p className="text-sm font-medium">Alvos e KPIs:</p>
                                 {alvosForObj(obj.id).map((alvo) => {
-                                  const objKpis = kpisForObj(obj.id);
-                                  // Try to match KPI by name similarity or just use first available
-                                  const matchedKpi = objKpis.length === 1
-                                    ? objKpis[0]
-                                    : objKpis.find(k => alvo.indicador && k.nome.toLowerCase().includes(alvo.indicador.toLowerCase()))
-                                      || (objKpis.length > 0 ? objKpis[0] : null);
+                                  const matchedKpi = getKpiForAlvo(alvo);
 
                                   return (
                                     <div key={alvo.id} className="pl-4 border-l-2 border-primary/20 py-2 space-y-2">
