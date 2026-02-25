@@ -1,71 +1,58 @@
 
 
-## Acompanhamento de Alvos e KPIs no Planejamento Estratégico
+## Diagnóstico: Login com Google volta para tela de login (URL publicada)
 
-### Situação Atual
-- A tabela `alvos_pe` armazena metas textuais vinculadas a objetivos estratégicos (ex: "Sustentabilidade do CBS1 nível 80%", meta: "80%")
-- A tabela `kpis` armazena indicadores mensuráveis com medições numéricas (`kpi_medicoes`), e já possui campo `objetivo_id` para vincular ao mesmo objetivo
-- Na página de PE, os alvos aparecem como texto estático sem progresso
-- A página de KPIs existe separadamente em `/kpis`
+### Causa Raiz
 
-### O que será feito
+Os logs de autenticação confirmam que o login com Google **funciona no backend** (status 200, sessão criada). O problema é uma condição de corrida no frontend:
 
-**1. Vincular alvos a KPIs na página de Planejamento Estratégico**
+1. Após o redirecionamento do Google, a página recarrega
+2. `onAuthStateChange` dispara com `INITIAL_SESSION` e a sessão válida
+3. `setLoading(false)` é chamado **imediatamente**
+4. Mas `fetchRole` roda em `setTimeout(..., 0)` -- ou seja, **depois** do render
+5. O componente renderiza com `session = válida`, `loading = false`, mas `roleChecked = false`
+6. `PublicRoute` redireciona para `/dashboard`
+7. `ProtectedRoute` renderiza corretamente (porque `needsRole = false` quando `roleChecked = false`)
+8. Porém, quando `fetchRole` completa e seta `roleChecked = true`, se por algum motivo o role não foi encontrado ainda, `needsRole` vira `true` e o usuário é redirecionado para `/selecionar-perfil`, que por sua vez redireciona para `/login` se o role já existe
 
-Para cada alvo exibido dentro de um objetivo, buscar os KPIs vinculados ao mesmo objetivo e exibir o progresso real ao lado do alvo.
+O problema real é que `loading` fica `false` antes de `fetchRole` completar. Na URL publicada, a latência de rede é maior que no preview, agravando a corrida.
 
-**2. Adicionar indicadores visuais de progresso em cada alvo**
+### Correção
 
-Cada item de alvo passará a mostrar:
-- Barra de progresso (se houver KPI vinculado com medições)
-- Badge de status: "No alvo", "Abaixo", "Sem dados"
-- Último valor medido e a meta
-- Link direto para o KPI detalhado (`/kpis/:id`)
+**Arquivo: `src/contexts/AuthContext.tsx`**
 
-**3. Adicionar resumo de progresso por objetivo**
+1. Remover o `setTimeout` do `fetchRole` e `fetchProfile`
+2. Aguardar `fetchRole` completar **antes** de setar `loading = false` quando há sessão
+3. Garantir que `roleChecked` seja `true` antes do app sair do estado de loading
 
-No cabeçalho de cada objetivo (AccordionTrigger), mostrar:
-- Quantidade de alvos com KPI vinculado vs total
-- Percentual médio de atingimento dos alvos
-
-**4. Botão de ação para vincular/criar KPI**
-
-Para coordenadores, cada alvo sem KPI vinculado terá um botão "Criar KPI" que abre o dialog de criação de KPI já pré-preenchido com os dados do alvo (nome, meta, objetivo_id).
-
-### Detalhes Técnicos
-
-**Arquivo: `src/pages/PlanejamentoEstrategico.tsx`**
-
-1. Alterar a query para buscar KPIs junto com suas últimas medições:
-   - Adicionar: `supabase.from("kpis").select("id, nome, meta, unidade, objetivo_id")`
-   - Adicionar: `supabase.from("kpi_medicoes").select("kpi_id, valor, data_referencia").order("data_referencia", { ascending: true })`
-
-2. Criar função helper `kpisForObjetivo(objId)` que retorna os KPIs do objetivo com sua última medição e percentual de progresso
-
-3. Para cada alvo renderizado, tentar associar um KPI pelo `objetivo_id` compartilhado. Exibir:
-   - `Progress` component com percentual (valor/meta * 100)
-   - Badge colorido de status
-   - Texto com valor atual vs meta
-   - Clique para navegar ao `/kpis/:id`
-
-4. No `AccordionTrigger` de cada objetivo, adicionar badge resumo (ex: "3/4 alvos no alvo")
-
-5. Importar `useNavigate`, `Progress`, `NovaMedicaoDialog` e `useAuth` para funcionalidades de navegação, progresso e criação
-
-**Nenhuma alteração de banco necessária** — os dados e relações já existem via `objetivo_id` em ambas as tabelas.
-
-### Layout visual de cada alvo (antes vs depois)
-
-```text
-ANTES:
-| Sustentabilidade do CBS1 nível 80%     |
-| Meta: 80%                               |
-| Indicador: Percentual de sustentabilidade|
-
-DEPOIS:
-| Sustentabilidade do CBS1 nível 80%    [No alvo] |
-| Meta: 80% · Atual: 72%                          |
-| ████████████████████░░░░  90%                    |
-| Indicador: Percentual de sustentabilidade  [→]   |
+Lógica corrigida:
+```typescript
+const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  async (event, session) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+    
+    if (session?.user) {
+      // Buscar role e profile ANTES de liberar o loading
+      await fetchProfile(session.user.id);
+      await fetchRole(session.user.id);
+    } else {
+      setProfile(null);
+      setRole(null);
+      setRoleChecked(true);
+    }
+    
+    if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+      initialSessionHandled = true;
+      setLoading(false);
+    }
+  }
+);
 ```
+
+Isso garante que quando `loading` vira `false`, o `roleChecked` já é `true` e o `role` já está definido, eliminando o redirecionamento incorreto.
+
+### Por que funciona no preview mas não no publicado
+
+No preview, a latência de rede é menor e o `fetchRole` completa antes do próximo render cycle. Na URL publicada, a latência é maior e o render acontece antes do `fetchRole` completar, causando o redirecionamento para login.
 
