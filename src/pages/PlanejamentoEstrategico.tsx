@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Target, ChevronRight } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Target, ChevronRight, ExternalLink, Plus, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { NovoKPIDialog } from "@/components/kpis/NovoKPIDialog";
 
 const TEMAS = {
   2026: "Unidade",
@@ -13,27 +18,92 @@ const TEMAS = {
   2029: "Maturidade",
 };
 
+interface KpiWithProgress {
+  id: string;
+  nome: string;
+  meta: number;
+  unidade: string;
+  objetivo_id: string | null;
+  ultimoValor: number | null;
+  percentual: number | null;
+}
+
 export default function PlanejamentoEstrategico() {
+  const navigate = useNavigate();
+  const { role } = useAuth();
   const [objetivos, setObjetivos] = useState<any[]>([]);
   const [alvos, setAlvos] = useState<any[]>([]);
   const [diagnostico, setDiagnostico] = useState<any[]>([]);
+  const [kpisMap, setKpisMap] = useState<Record<string, KpiWithProgress[]>>({});
 
-  useEffect(() => {
+  const fetchData = () => {
     Promise.all([
       supabase.from("objetivos_estrategicos").select("*, areas_estrategicas(nome)").order("ano"),
       supabase.from("alvos_pe").select("*"),
       supabase.from("diagnostico_situacional").select("*").order("categoria"),
-    ]).then(([objRes, alvosRes, diagRes]) => {
+      supabase.from("kpis").select("id, nome, meta, unidade, objetivo_id"),
+      supabase.from("kpi_medicoes").select("kpi_id, valor, data_referencia").order("data_referencia", { ascending: false }),
+    ]).then(([objRes, alvosRes, diagRes, kpisRes, medicoesRes]) => {
       if (objRes.data) setObjetivos(objRes.data);
       if (alvosRes.data) setAlvos(alvosRes.data);
       if (diagRes.data) setDiagnostico(diagRes.data);
+
+      if (kpisRes.data && medicoesRes.data) {
+        // Build map: objetivo_id -> KpiWithProgress[]
+        const medicoesByKpi: Record<string, { valor: number }> = {};
+        for (const m of medicoesRes.data) {
+          if (!medicoesByKpi[m.kpi_id]) {
+            medicoesByKpi[m.kpi_id] = { valor: m.valor };
+          }
+        }
+
+        const map: Record<string, KpiWithProgress[]> = {};
+        for (const kpi of kpisRes.data) {
+          if (!kpi.objetivo_id) continue;
+          const med = medicoesByKpi[kpi.id];
+          const ultimoValor = med ? med.valor : null;
+          const percentual = ultimoValor !== null && kpi.meta > 0
+            ? Math.round((ultimoValor / kpi.meta) * 100)
+            : null;
+          if (!map[kpi.objetivo_id]) map[kpi.objetivo_id] = [];
+          map[kpi.objetivo_id].push({
+            id: kpi.id,
+            nome: kpi.nome,
+            meta: kpi.meta,
+            unidade: kpi.unidade,
+            objetivo_id: kpi.objetivo_id,
+            ultimoValor,
+            percentual,
+          });
+        }
+        setKpisMap(map);
+      }
     });
-  }, []);
+  };
+
+  useEffect(() => { fetchData(); }, []);
 
   const objByYear = (year: number) => objetivos.filter((o) => o.ano === year);
   const alvosForObj = (objId: string) => alvos.filter((a) => a.objetivo_id === objId);
+  const kpisForObj = (objId: string): KpiWithProgress[] => kpisMap[objId] || [];
 
-  // Group diagnostico by categoria
+  const getStatusBadge = (percentual: number | null) => {
+    if (percentual === null) return <Badge variant="outline" className="text-xs">Sem dados</Badge>;
+    if (percentual >= 90) return <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-200 text-xs"><TrendingUp className="h-3 w-3 mr-1" />No alvo</Badge>;
+    if (percentual >= 60) return <Badge className="bg-amber-500/15 text-amber-700 border-amber-200 text-xs"><Minus className="h-3 w-3 mr-1" />Atenção</Badge>;
+    return <Badge className="bg-red-500/15 text-red-700 border-red-200 text-xs"><TrendingDown className="h-3 w-3 mr-1" />Abaixo</Badge>;
+  };
+
+  const getObjSummary = (objId: string) => {
+    const objAlvos = alvosForObj(objId);
+    const objKpis = kpisForObj(objId);
+    if (objAlvos.length === 0) return null;
+    const withKpi = objKpis.filter(k => k.percentual !== null).length;
+    const onTarget = objKpis.filter(k => k.percentual !== null && k.percentual >= 90).length;
+    if (objKpis.length === 0) return null;
+    return { withKpi, onTarget, total: objKpis.length };
+  };
+
   const diagCategories = [...new Set(diagnostico.map((d) => d.categoria))];
 
   return (
@@ -69,36 +139,88 @@ export default function PlanejamentoEstrategico() {
                   <p className="text-sm text-muted-foreground">Nenhum objetivo cadastrado para este ano</p>
                 ) : (
                   <Accordion type="multiple" className="space-y-2">
-                    {objByYear(year).map((obj) => (
-                      <AccordionItem key={obj.id} value={obj.id} className="border rounded-lg px-4">
-                        <AccordionTrigger className="hover:no-underline">
-                          <div className="flex items-center gap-2 text-left">
-                            <ChevronRight className="h-4 w-4 shrink-0 text-primary" />
-                            <div>
-                              <p className="font-medium">{obj.titulo}</p>
-                              {obj.areas_estrategicas?.nome && (
-                                <p className="text-xs text-muted-foreground">{obj.areas_estrategicas.nome}</p>
+                    {objByYear(year).map((obj) => {
+                      const summary = getObjSummary(obj.id);
+                      return (
+                        <AccordionItem key={obj.id} value={obj.id} className="border rounded-lg px-4">
+                          <AccordionTrigger className="hover:no-underline">
+                            <div className="flex items-center gap-2 text-left flex-1">
+                              <ChevronRight className="h-4 w-4 shrink-0 text-primary" />
+                              <div className="flex-1">
+                                <p className="font-medium">{obj.titulo}</p>
+                                {obj.areas_estrategicas?.nome && (
+                                  <p className="text-xs text-muted-foreground">{obj.areas_estrategicas.nome}</p>
+                                )}
+                              </div>
+                              {summary && (
+                                <Badge variant="secondary" className="text-xs ml-2 shrink-0">
+                                  {summary.onTarget}/{summary.total} no alvo
+                                </Badge>
                               )}
                             </div>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          {obj.descricao && <p className="text-sm text-muted-foreground mb-3">{obj.descricao}</p>}
-                          {alvosForObj(obj.id).length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium">Alvos e KPIs:</p>
-                              {alvosForObj(obj.id).map((alvo) => (
-                                <div key={alvo.id} className="pl-4 border-l-2 border-primary/20 py-1">
-                                  <p className="text-sm">{alvo.descricao}</p>
-                                  {alvo.meta && <p className="text-xs text-muted-foreground">Meta: {alvo.meta}</p>}
-                                  {alvo.indicador && <p className="text-xs text-muted-foreground">Indicador: {alvo.indicador}</p>}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            {obj.descricao && <p className="text-sm text-muted-foreground mb-3">{obj.descricao}</p>}
+                            {alvosForObj(obj.id).length > 0 && (
+                              <div className="space-y-3">
+                                <p className="text-sm font-medium">Alvos e KPIs:</p>
+                                {alvosForObj(obj.id).map((alvo) => {
+                                  const objKpis = kpisForObj(obj.id);
+                                  // Try to match KPI by name similarity or just use first available
+                                  const matchedKpi = objKpis.length === 1
+                                    ? objKpis[0]
+                                    : objKpis.find(k => alvo.indicador && k.nome.toLowerCase().includes(alvo.indicador.toLowerCase()))
+                                      || (objKpis.length > 0 ? objKpis[0] : null);
+
+                                  return (
+                                    <div key={alvo.id} className="pl-4 border-l-2 border-primary/20 py-2 space-y-2">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <p className="text-sm font-medium">{alvo.descricao}</p>
+                                        {matchedKpi ? getStatusBadge(matchedKpi.percentual) : getStatusBadge(null)}
+                                      </div>
+
+                                      {matchedKpi && matchedKpi.ultimoValor !== null ? (
+                                        <>
+                                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                            <span>Meta: {matchedKpi.meta}{matchedKpi.unidade}</span>
+                                            <span>·</span>
+                                            <span>Atual: {matchedKpi.ultimoValor}{matchedKpi.unidade}</span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <Progress value={Math.min(matchedKpi.percentual || 0, 100)} className="h-2 flex-1" />
+                                            <span className="text-xs font-medium text-muted-foreground w-10 text-right">{matchedKpi.percentual}%</span>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <>
+                                          {alvo.meta && <p className="text-xs text-muted-foreground">Meta: {alvo.meta}</p>}
+                                        </>
+                                      )}
+
+                                      <div className="flex items-center justify-between">
+                                        {alvo.indicador && <p className="text-xs text-muted-foreground">Indicador: {alvo.indicador}</p>}
+                                        {matchedKpi ? (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 text-xs gap-1 text-primary"
+                                            onClick={() => navigate(`/kpis/${matchedKpi.id}`)}
+                                          >
+                                            Ver KPI <ExternalLink className="h-3 w-3" />
+                                          </Button>
+                                        ) : role === "coordenacao" ? (
+                                          <NovoKPIDialog onCreated={fetchData} />
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    })}
                   </Accordion>
                 )}
               </CardContent>
