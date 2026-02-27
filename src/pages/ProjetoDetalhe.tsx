@@ -256,7 +256,21 @@ export default function ProjetoDetalhe() {
     if (id) loadData();
   }, [id]);
 
-  const loadData = async () => {
+  // Auto-expand and scroll to etapa from URL hash (e.g. #etapa-uuid)
+  useEffect(() => {
+    const hash = location.hash;
+    if (hash.startsWith("#etapa-") && etapas.length > 0) {
+      const etapaId = hash.replace("#etapa-", "");
+      const exists = etapas.some((e) => e.id === etapaId);
+      if (exists) {
+        setExpandedEtapa(etapaId);
+        setTimeout(() => {
+          etapaRefs.current[etapaId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 150);
+      }
+    }
+  }, [etapas, location.hash]);
+
     const [projetoRes, etapasRes, comentariosRes, profilesRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
       supabase.from("etapas_projeto").select("*").eq("projeto_id", id).order("ordem"),
