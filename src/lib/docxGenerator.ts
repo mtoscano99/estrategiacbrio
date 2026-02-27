@@ -186,9 +186,23 @@ export async function generateProjectDocx(
 ) {
   const children: any[] = [];
   const today = format(new Date(), "dd/MM/yyyy");
+  const logoBuffer = await fetchLogoBuffer();
 
   // ══════ CAPA ══════
-  for (let i = 0; i < 4; i++) children.push(emptyP());
+  if (logoBuffer) {
+    children.push(emptyP());
+    children.push(new Paragraph({
+      alignment: AlignmentType.LEFT,
+      children: [new ImageRun({
+        data: logoBuffer,
+        transformation: { width: 80, height: 80 },
+        type: "png",
+      })],
+    }));
+    children.push(emptyP());
+  } else {
+    for (let i = 0; i < 4; i++) children.push(emptyP());
+  }
 
   children.push(new Table({
     width: { size: 80, type: WidthType.PERCENTAGE },
