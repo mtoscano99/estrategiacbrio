@@ -498,7 +498,14 @@ export async function generateProjectDocx(
         default: new Header({
           children: [new Paragraph({
             alignment: AlignmentType.RIGHT,
-            children: [new TextRun({ text: `CBRio – ${projeto.nome}`, font: "Aptos", size: 18, color: GRAY, italics: true })],
+            children: [
+              ...(logoBuffer ? [new ImageRun({
+                data: logoBuffer,
+                transformation: { width: 28, height: 28 },
+                type: "png",
+              }), new TextRun({ text: "  ", font: "Aptos", size: 18 })] : []),
+              new TextRun({ text: `CBRio – ${projeto.nome}`, font: "Aptos", size: 18, color: GRAY, italics: true }),
+            ],
           })],
         }),
       },
