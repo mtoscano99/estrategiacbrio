@@ -2,7 +2,7 @@ import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType,
   TableOfContents, HeadingLevel, BorderStyle, WidthType, ShadingType,
-  PageNumber, PageBreak,
+  PageNumber, PageBreak, ImageRun,
 } from "docx";
 import { saveAs } from "file-saver";
 import { format, parseISO, differenceInCalendarMonths } from "date-fns";
