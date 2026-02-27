@@ -334,7 +334,10 @@ export default function Relatorios() {
                       <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">Progresso</p>
                       <p className="text-3xl font-bold">{progresso}%</p>
                       <Progress value={progresso} className="h-2 mt-2" />
-                      <p className="text-xs text-muted-foreground mt-1.5">{concluidas} de {etapas.length} etapas concluídas</p>
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        {concluidas} concluída{concluidas !== 1 ? "s" : ""}, {emAndamento} em andamento, {naoIniciadas} não iniciada{naoIniciadas !== 1 ? "s" : ""}
+                        {atrasadas > 0 && <>, <span className="text-destructive font-semibold">{atrasadas} atrasada{atrasadas !== 1 ? "s" : ""}</span></>}
+                      </p>
                     </div>
                     {/* Financeiro */}
                     <div className="p-4 rounded-lg border bg-card">
