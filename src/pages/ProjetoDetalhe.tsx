@@ -497,9 +497,28 @@ export default function ProjetoDetalhe() {
         <Button variant="outline" size="sm" className="gap-1.5" onClick={requestAnalise}>
           <Sparkles className="h-4 w-4" /> Sugestões IA
         </Button>
-        <Badge variant={projeto.status === "atrasado" ? "destructive" : "default"}>
-          {STATUS_LABELS[projeto.status]}
-        </Badge>
+        {(isCoordination || projeto.responsavel_id === user?.id) ? (
+          <Select
+            value={projeto.status}
+            onValueChange={async (val) => {
+              const { error } = await supabase.from("projetos").update({ status: val as any }).eq("id", id);
+              if (error) { toast.error("Erro ao atualizar status"); return; }
+              setProjeto((prev: any) => ({ ...prev, status: val }));
+              toast.success("Status atualizado");
+            }}
+          >
+            <SelectTrigger className={`w-[160px] h-8 text-xs font-semibold ${projeto.status === "atrasado" ? "border-destructive text-destructive" : projeto.status === "concluido" ? "border-primary text-primary" : ""}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Badge variant={projeto.status === "atrasado" ? "destructive" : "default"}>
+            {STATUS_LABELS[projeto.status]}
+          </Badge>
+        )}
       </div>
 
       {/* Overview Cards */}
