@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { FilePlus, Upload, Loader2 } from "lucide-react";
+import { FilePlus, Upload, Loader2, Trash2, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { UserAvatar } from "@/components/UserAvatar";
 
 interface ExtractedEtapa {
@@ -270,15 +270,131 @@ export default function NovoProjeto() {
         </div>
       </div>
 
-      {/* Extracted extras preview */}
-      {(extractedEtapas.length > 0 || Object.values(extractedSwot).some((v) => v && v.length > 0)) && (
+      {/* Editable extracted etapas */}
+      {extractedEtapas.length > 0 && (
+        <Card className="mb-4 border-primary/30">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-primary">📋 Etapas extraídas ({extractedEtapas.length})</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive text-xs"
+                onClick={() => setExtractedEtapas([])}
+              >
+                Remover todas
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {extractedEtapas.map((etapa, idx) => (
+                <div key={idx} className="rounded-lg border bg-card p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs font-bold text-muted-foreground mt-2 shrink-0 w-5 text-center">{idx + 1}</span>
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        value={etapa.nome}
+                        onChange={(e) => {
+                          const updated = [...extractedEtapas];
+                          updated[idx] = { ...updated[idx], nome: e.target.value };
+                          setExtractedEtapas(updated);
+                        }}
+                        placeholder="Nome da etapa"
+                        className="h-8 text-sm font-medium"
+                      />
+                      <Textarea
+                        value={etapa.descricao || ""}
+                        onChange={(e) => {
+                          const updated = [...extractedEtapas];
+                          updated[idx] = { ...updated[idx], descricao: e.target.value };
+                          setExtractedEtapas(updated);
+                        }}
+                        placeholder="Descrição da etapa..."
+                        className="min-h-[40px] text-sm"
+                        rows={2}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Início</Label>
+                          <Input
+                            type="date"
+                            value={etapa.data_inicio || ""}
+                            onChange={(e) => {
+                              const updated = [...extractedEtapas];
+                              updated[idx] = { ...updated[idx], data_inicio: e.target.value };
+                              setExtractedEtapas(updated);
+                            }}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Fim</Label>
+                          <Input
+                            type="date"
+                            value={etapa.data_fim || ""}
+                            onChange={(e) => {
+                              const updated = [...extractedEtapas];
+                              updated[idx] = { ...updated[idx], data_fim: e.target.value };
+                              setExtractedEtapas(updated);
+                            }}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={idx === 0}
+                        onClick={() => {
+                          const updated = [...extractedEtapas];
+                          [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
+                          setExtractedEtapas(updated);
+                        }}
+                      >
+                        <ChevronUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={idx === extractedEtapas.length - 1}
+                        onClick={() => {
+                          const updated = [...extractedEtapas];
+                          [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
+                          setExtractedEtapas(updated);
+                        }}
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive hover:text-destructive"
+                        onClick={() => setExtractedEtapas((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* SWOT summary */}
+      {Object.values(extractedSwot).some((v) => v && v.length > 0) && (
         <Card className="mb-4 border-primary/30 bg-primary/5">
           <CardContent className="pt-4 pb-3">
-            <p className="text-sm font-medium text-primary mb-2">Dados extraídos do documento:</p>
+            <p className="text-sm font-medium text-primary mb-2">Dados SWOT extraídos:</p>
             <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-              {extractedEtapas.length > 0 && (
-                <span className="bg-background rounded px-2 py-1">📋 {extractedEtapas.length} etapas</span>
-              )}
               {(extractedSwot.forca?.length ?? 0) > 0 && (
                 <span className="bg-background rounded px-2 py-1">💪 {extractedSwot.forca!.length} forças</span>
               )}
