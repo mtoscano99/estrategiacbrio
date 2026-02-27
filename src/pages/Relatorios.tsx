@@ -388,9 +388,18 @@ export default function Relatorios() {
                   </Select>
                 </div>
                 {projetoData && (
-                  <Button onClick={handlePrint}>
-                    <Printer className="h-4 w-4 mr-2" /> Imprimir / PDF
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={handleGenerateDocx} disabled={generatingDocx} variant="outline">
+                      {generatingDocx ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando...</>
+                      ) : (
+                        <><FileText className="h-4 w-4 mr-2" /> Gerar DOCX</>
+                      )}
+                    </Button>
+                    <Button onClick={handlePrint}>
+                      <Printer className="h-4 w-4 mr-2" /> Imprimir / PDF
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardContent>
