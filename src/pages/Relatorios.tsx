@@ -123,7 +123,12 @@ export default function Relatorios() {
 
   // ── Project report computations ──
   const concluidas = etapas.filter((e) => e.status === "concluido").length;
-  const progresso = etapas.length > 0 ? Math.round((concluidas / etapas.length) * 100) : 0;
+  const emAndamento = etapas.filter((e) => e.status === "em_andamento").length;
+  const atrasadas = etapas.filter((e) => e.status === "atrasado").length;
+  const naoIniciadas = etapas.filter((e) => e.status === "nao_iniciado").length;
+  const canceladas = etapas.filter((e) => e.status === "cancelado").length;
+  const etapasAtivas = etapas.length - canceladas;
+  const progresso = etapasAtivas > 0 ? Math.round((concluidas * 100 + emAndamento * 50) / etapasAtivas) : 0;
   const orcamento = Number(projetoData?.orcamento_previsto || 0);
   const gasto = Number(projetoData?.valor_gasto || 0);
   const saldo = orcamento - gasto;
