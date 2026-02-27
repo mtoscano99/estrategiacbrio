@@ -730,16 +730,17 @@ export default function ProjetoDetalhe() {
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={etapas.map((e) => e.id)} strategy={verticalListSortingStrategy}>
                 {etapas.map((etapa, i) => (
-                  <SortableEtapaItem
-                    key={etapa.id}
-                    etapa={etapa}
-                    index={i}
-                    profiles={profiles}
-                    expandedEtapa={expandedEtapa}
-                    setExpandedEtapa={setExpandedEtapa}
-                    updateEtapa={updateEtapa}
-                    deleteEtapa={deleteEtapa}
-                  />
+                  <div key={etapa.id} ref={(el) => { etapaRefs.current[etapa.id] = el; }}>
+                    <SortableEtapaItem
+                      etapa={etapa}
+                      index={i}
+                      profiles={profiles}
+                      expandedEtapa={expandedEtapa}
+                      setExpandedEtapa={setExpandedEtapa}
+                      updateEtapa={updateEtapa}
+                      deleteEtapa={deleteEtapa}
+                    />
+                  </div>
                 ))}
               </SortableContext>
             </DndContext>
