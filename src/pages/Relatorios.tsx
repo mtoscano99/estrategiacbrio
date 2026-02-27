@@ -472,7 +472,7 @@ export default function Relatorios() {
                 <Card className="shadow-sm">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                      4. Observações
+                      5. Observações
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
