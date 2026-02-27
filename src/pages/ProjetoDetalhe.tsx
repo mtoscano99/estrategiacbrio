@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -233,6 +233,8 @@ function SortableEtapaItem({
 export default function ProjetoDetalhe() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const etapaRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { user, isCoordination } = useAuth();
   const [projeto, setProjeto] = useState<any>(null);
   const [etapas, setEtapas] = useState<any[]>([]);
@@ -253,6 +255,21 @@ export default function ProjetoDetalhe() {
   useEffect(() => {
     if (id) loadData();
   }, [id]);
+
+  // Auto-expand and scroll to etapa from URL hash (e.g. #etapa-uuid)
+  useEffect(() => {
+    const hash = location.hash;
+    if (hash.startsWith("#etapa-") && etapas.length > 0) {
+      const etapaId = hash.replace("#etapa-", "");
+      const exists = etapas.some((e) => e.id === etapaId);
+      if (exists) {
+        setExpandedEtapa(etapaId);
+        setTimeout(() => {
+          etapaRefs.current[etapaId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 150);
+      }
+    }
+  }, [etapas, location.hash]);
 
   const loadData = async () => {
     const [projetoRes, etapasRes, comentariosRes, profilesRes] = await Promise.all([
@@ -713,16 +730,17 @@ export default function ProjetoDetalhe() {
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={etapas.map((e) => e.id)} strategy={verticalListSortingStrategy}>
                 {etapas.map((etapa, i) => (
-                  <SortableEtapaItem
-                    key={etapa.id}
-                    etapa={etapa}
-                    index={i}
-                    profiles={profiles}
-                    expandedEtapa={expandedEtapa}
-                    setExpandedEtapa={setExpandedEtapa}
-                    updateEtapa={updateEtapa}
-                    deleteEtapa={deleteEtapa}
-                  />
+                  <div key={etapa.id} ref={(el) => { etapaRefs.current[etapa.id] = el; }}>
+                    <SortableEtapaItem
+                      etapa={etapa}
+                      index={i}
+                      profiles={profiles}
+                      expandedEtapa={expandedEtapa}
+                      setExpandedEtapa={setExpandedEtapa}
+                      updateEtapa={updateEtapa}
+                      deleteEtapa={deleteEtapa}
+                    />
+                  </div>
                 ))}
               </SortableContext>
             </DndContext>
