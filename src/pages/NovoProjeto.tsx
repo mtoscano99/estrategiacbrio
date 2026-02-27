@@ -128,7 +128,7 @@ export default function NovoProjeto() {
 
       const extras: string[] = [];
       if (data.etapas?.length) extras.push(`${data.etapas.length} etapas`);
-      const swotCount = Object.values(data.swot || {}).reduce((a: number, b: any) => a + (b?.length || 0), 0);
+      const swotCount = Object.values(data.swot || {}).reduce<number>((a, b: any) => a + (b?.length || 0), 0);
       if (swotCount > 0) extras.push(`${swotCount} itens SWOT`);
 
       toast.success(
