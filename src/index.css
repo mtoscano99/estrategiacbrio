@@ -119,6 +119,7 @@
 /* Professional print styles for A4 PDF export */
 @media print {
   /* Hide UI chrome */
+  aside,
   [data-sidebar],
   header,
   nav,
