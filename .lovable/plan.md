@@ -1,23 +1,57 @@
 
 
-## Problema: Relatório não reflete dados reais do projeto
+## Problema: Dados não aparecem após login
 
-O relatório calcula progresso **apenas** contando etapas com status "concluído" (linha 108). Etapas "em andamento" são ignoradas no cálculo, fazendo parecer que nada foi executado. Além disso, o relatório não mostra dados completos do projeto.
+### Causa Raiz
 
-### Correções
+O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
 
-**Arquivo: `src/pages/Relatorios.tsx`**
+Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
 
-1. **Corrigir cálculo de progresso** — Considerar etapas "em_andamento" como progresso parcial (50%) e "concluido" como 100%, em vez de contar apenas concluídas
-   - Nova fórmula: `(concluidas * 100 + emAndamento * 50) / totalEtapas`
-   - Exibir contagem detalhada: "X concluídas, Y em andamento, Z não iniciadas"
+O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
 
-2. **Adicionar resumo de status das etapas** — Painel visual com contadores por status (não iniciado, em andamento, concluído, atrasado) com ícones e cores
+### Correção
 
-3. **Garantir que a query de etapas retorna dados** — A RLS de `profiles` bloqueia leitura de perfis alheios para líderes de área. A query de etapas com join em profiles pode falhar silenciosamente. Trocar o join por busca separada ou usar view
+**Arquivo: `src/contexts/AuthContext.tsx`**
 
-4. **Adicionar seção de descrição das etapas** — Incluir coluna de descrição na tabela de cronograma quando disponível
+Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
 
-### Arquivos modificados
-- `src/pages/Relatorios.tsx` — Cálculo de progresso, painel de status, robustez da query
+```typescript
+const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  (event, session) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+
+    if (session?.user) {
+      const userId = session.user.id;
+      // Defer to next tick so Supabase client sets auth headers first
+      setTimeout(() => {
+        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
+          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+            initialSessionHandled = true;
+            setLoading(false);
+          }
+        });
+      }, 0);
+    } else {
+      setProfile(null);
+      setRole(null);
+      setRoleChecked(true);
+      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+        initialSessionHandled = true;
+        setLoading(false);
+      }
+    }
+  }
+);
+```
+
+Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
+
+### Por que isso resolve
+
+- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
+- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
+- `loading` permanece `true` até ambas completarem, evitando renders prematuros
+- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
 

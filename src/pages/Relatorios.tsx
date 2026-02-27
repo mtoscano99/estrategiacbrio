@@ -81,10 +81,27 @@ export default function Relatorios() {
     setSelectedProjeto(projetoId);
     const [projetoRes, etapasRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", projetoId).single(),
-      supabase.from("etapas_projeto").select("*, profiles:responsavel_id(nome)").eq("projeto_id", projetoId).order("ordem"),
+      supabase.from("etapas_projeto").select("id, nome, descricao, data_inicio, data_fim, status, ordem, valor_gasto, responsavel_id").eq("projeto_id", projetoId).order("ordem"),
     ]);
     if (projetoRes.data) setProjetoData(projetoRes.data);
-    if (etapasRes.data) setEtapas(etapasRes.data);
+    if (etapasRes.data) {
+      // Fetch responsible names separately to avoid RLS join issues on profiles
+      const responsavelIds = [...new Set(etapasRes.data.map((e: any) => e.responsavel_id).filter(Boolean))];
+      let profilesMap: Record<string, string> = {};
+      if (responsavelIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, nome")
+          .in("id", responsavelIds);
+        if (profilesData) {
+          profilesMap = Object.fromEntries(profilesData.map((p: any) => [p.id, p.nome]));
+        }
+      }
+      setEtapas(etapasRes.data.map((e: any) => ({
+        ...e,
+        responsavel_nome: e.responsavel_id ? (profilesMap[e.responsavel_id] || "–") : "–",
+      })));
+    }
   };
 
   const loadPortfolio = async () => {
@@ -106,7 +123,12 @@ export default function Relatorios() {
 
   // ── Project report computations ──
   const concluidas = etapas.filter((e) => e.status === "concluido").length;
-  const progresso = etapas.length > 0 ? Math.round((concluidas / etapas.length) * 100) : 0;
+  const emAndamento = etapas.filter((e) => e.status === "em_andamento").length;
+  const atrasadas = etapas.filter((e) => e.status === "atrasado").length;
+  const naoIniciadas = etapas.filter((e) => e.status === "nao_iniciado").length;
+  const canceladas = etapas.filter((e) => e.status === "cancelado").length;
+  const etapasAtivas = etapas.length - canceladas;
+  const progresso = etapasAtivas > 0 ? Math.round((concluidas * 100 + emAndamento * 50) / etapasAtivas) : 0;
   const orcamento = Number(projetoData?.orcamento_previsto || 0);
   const gasto = Number(projetoData?.valor_gasto || 0);
   const saldo = orcamento - gasto;
@@ -312,7 +334,10 @@ export default function Relatorios() {
                       <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">Progresso</p>
                       <p className="text-3xl font-bold">{progresso}%</p>
                       <Progress value={progresso} className="h-2 mt-2" />
-                      <p className="text-xs text-muted-foreground mt-1.5">{concluidas} de {etapas.length} etapas concluídas</p>
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        {concluidas} concluída{concluidas !== 1 ? "s" : ""}, {emAndamento} em andamento, {naoIniciadas} não iniciada{naoIniciadas !== 1 ? "s" : ""}
+                        {atrasadas > 0 && <>, <span className="text-destructive font-semibold">{atrasadas} atrasada{atrasadas !== 1 ? "s" : ""}</span></>}
+                      </p>
                     </div>
                     {/* Financeiro */}
                     <div className="p-4 rounded-lg border bg-card">
@@ -358,11 +383,41 @@ export default function Relatorios() {
                 </CardContent>
               </Card>
 
+              {/* ── Resumo de Status das Etapas ── */}
+              {etapas.length > 0 && (
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                      3. Status das Etapas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      {[
+                        { key: "nao_iniciado", count: naoIniciadas, label: "Não Iniciadas", icon: <CircleDot className="h-5 w-5" /> },
+                        { key: "em_andamento", count: emAndamento, label: "Em Andamento", icon: <Clock className="h-5 w-5" /> },
+                        { key: "concluido", count: concluidas, label: "Concluídas", icon: <CheckCircle2 className="h-5 w-5" /> },
+                        { key: "atrasado", count: atrasadas, label: "Atrasadas", icon: <AlertTriangle className="h-5 w-5" /> },
+                        { key: "cancelado", count: canceladas, label: "Canceladas", icon: <XCircle className="h-5 w-5" /> },
+                      ].map((item) => (
+                        <div key={item.key} className={`flex flex-col items-center p-3 rounded-lg border text-center ${item.count > 0 ? "" : "opacity-50"}`}>
+                          <span className={`mb-1 ${item.key === "concluido" ? "text-[hsl(var(--success))]" : item.key === "atrasado" ? "text-destructive" : item.key === "em_andamento" ? "text-primary" : "text-muted-foreground"}`}>
+                            {item.icon}
+                          </span>
+                          <span className="text-2xl font-bold">{item.count}</span>
+                          <span className="text-xs text-muted-foreground">{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* ── Cronograma Detalhado ── */}
               <Card className="shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    3. Cronograma de Etapas
+                    4. Cronograma de Etapas
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -385,8 +440,11 @@ export default function Relatorios() {
                         {etapas.map((e, i) => (
                           <TableRow key={e.id}>
                             <TableCell className="text-muted-foreground font-medium">{i + 1}</TableCell>
-                            <TableCell className="font-medium">{e.nome}</TableCell>
-                            <TableCell className="text-muted-foreground">{(e as any).profiles?.nome || "–"}</TableCell>
+                            <TableCell>
+                              <span className="font-medium">{e.nome}</span>
+                              {e.descricao && <p className="text-xs text-muted-foreground mt-0.5">{e.descricao}</p>}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{e.responsavel_nome || "–"}</TableCell>
                             <TableCell className="text-sm">{fmtDate(e.data_inicio)}</TableCell>
                             <TableCell className="text-sm">{fmtDate(e.data_fim)}</TableCell>
                             <TableCell>
@@ -414,7 +472,7 @@ export default function Relatorios() {
                 <Card className="shadow-sm">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                      4. Observações
+                      5. Observações
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
