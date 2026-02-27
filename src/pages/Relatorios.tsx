@@ -117,10 +117,162 @@ export default function Relatorios() {
     }
   };
 
+  const [generatingDocx, setGeneratingDocx] = useState(false);
+
   const handlePrint = () => {
     window.print();
     toast.success("Relatório enviado para impressão");
   };
+
+  const handleGenerateDocx = useCallback(async () => {
+    if (!projetoData || !selectedProjeto) return;
+    setGeneratingDocx(true);
+    toast.info("Gerando documento DOCX... A IA está complementando as informações.");
+
+    try {
+      // Fetch SWOT items
+      const { data: swotData } = await supabase
+        .from("swot_items")
+        .select("tipo, descricao")
+        .eq("projeto_id", selectedProjeto);
+
+      const swot: DocxSwotItems = { forca: [], fraqueza: [], oportunidade: [], ameaca: [] };
+      swotData?.forEach((item: any) => {
+        if (swot[item.tipo as keyof DocxSwotItems]) {
+          swot[item.tipo as keyof DocxSwotItems].push(item.descricao);
+        }
+      });
+
+      // Fetch KPIs linked to the project's objective
+      let kpiList: DocxKPI[] = [];
+      if (projetoData.objetivo_id) {
+        const { data: kpisData } = await supabase
+          .from("kpis")
+          .select("id, nome, unidade, meta, periodicidade")
+          .eq("objetivo_id", projetoData.objetivo_id);
+
+        if (kpisData && kpisData.length > 0) {
+          const kpiIds = kpisData.map((k: any) => k.id);
+          const { data: medicoesData } = await supabase
+            .from("kpi_medicoes")
+            .select("kpi_id, valor, data_referencia")
+            .in("kpi_id", kpiIds)
+            .order("data_referencia", { ascending: false });
+
+          const lastValues: Record<string, number> = {};
+          medicoesData?.forEach((m: any) => {
+            if (!lastValues[m.kpi_id]) lastValues[m.kpi_id] = m.valor;
+          });
+
+          kpiList = kpisData.map((k: any) => ({
+            nome: k.nome,
+            unidade: k.unidade,
+            meta: k.meta,
+            periodicidade: k.periodicidade,
+            ultimo_valor: lastValues[k.id] ?? null,
+          }));
+        }
+      }
+
+      // Also try KPIs by area
+      if (kpiList.length === 0 && projetoData.area_id) {
+        const { data: kpisArea } = await supabase
+          .from("kpis")
+          .select("id, nome, unidade, meta, periodicidade")
+          .eq("area_id", projetoData.area_id);
+
+        if (kpisArea && kpisArea.length > 0) {
+          const kpiIds = kpisArea.map((k: any) => k.id);
+          const { data: medicoesData } = await supabase
+            .from("kpi_medicoes")
+            .select("kpi_id, valor, data_referencia")
+            .in("kpi_id", kpiIds)
+            .order("data_referencia", { ascending: false });
+
+          const lastValues: Record<string, number> = {};
+          medicoesData?.forEach((m: any) => {
+            if (!lastValues[m.kpi_id]) lastValues[m.kpi_id] = m.valor;
+          });
+
+          kpiList = kpisArea.map((k: any) => ({
+            nome: k.nome,
+            unidade: k.unidade,
+            meta: k.meta,
+            periodicidade: k.periodicidade,
+            ultimo_valor: lastValues[k.id] ?? null,
+          }));
+        }
+      }
+
+      // Call AI for missing content
+      const aiContext = {
+        nome: projetoData.nome,
+        descricao: projetoData.descricao,
+        status: projetoData.status,
+        orcamento: projetoData.orcamento_previsto,
+        gasto: projetoData.valor_gasto,
+        dataInicio: projetoData.data_inicio,
+        dataFim: projetoData.data_fim,
+        area: projetoData.areas_estrategicas?.nome,
+        objetivo: projetoData.objetivos_estrategicos?.titulo,
+        responsavel: projetoData.profiles?.nome,
+        etapas: etapas.map((e) => ({
+          nome: e.nome,
+          status: e.status,
+          descricao: e.descricao,
+        })),
+        swot,
+        kpis: kpiList.map((k) => ({ nome: k.nome, meta: k.meta, unidade: k.unidade })),
+      };
+
+      const { data: aiData, error: aiError } = await supabase.functions.invoke("ai-project-assistant", {
+        body: { mode: "docx", context: aiContext },
+      });
+
+      if (aiError) throw new Error("Erro ao gerar conteúdo com IA");
+
+      const aiContent: DocxAIContent = {
+        resumo_executivo: aiData?.resumo_executivo || projetoData.descricao || "Projeto em desenvolvimento.",
+        direcionadores: aiData?.direcionadores || "Direcionadores estratégicos a serem definidos.",
+        diagnostico: aiData?.diagnostico || "Diagnóstico situacional a ser elaborado.",
+        consideracoes_finais: aiData?.consideracoes_finais || "Considerações finais a serem elaboradas.",
+      };
+
+      // Build project data for generator
+      const docxProject: DocxProjectData = {
+        nome: projetoData.nome,
+        descricao: projetoData.descricao,
+        status: projetoData.status,
+        saude: projetoData.saude,
+        data_inicio: projetoData.data_inicio,
+        data_fim: projetoData.data_fim,
+        orcamento_previsto: projetoData.orcamento_previsto,
+        valor_gasto: projetoData.valor_gasto,
+        centro_custo: projetoData.centro_custo,
+        area_nome: projetoData.areas_estrategicas?.nome,
+        responsavel_nome: projetoData.profiles?.nome,
+        objetivo_titulo: projetoData.objetivos_estrategicos?.titulo,
+      };
+
+      const docxEtapas: DocxEtapa[] = etapas.map((e) => ({
+        nome: e.nome,
+        descricao: e.descricao,
+        data_inicio: e.data_inicio,
+        data_fim: e.data_fim,
+        status: e.status,
+        valor_gasto: e.valor_gasto,
+        responsavel_nome: e.responsavel_nome,
+      }));
+
+      await generateProjectDocx(docxProject, docxEtapas, swot, kpiList, aiContent);
+      toast.success("Documento DOCX gerado com sucesso!");
+    } catch (err: any) {
+      console.error("Erro ao gerar DOCX:", err);
+      toast.error(err?.message || "Erro ao gerar o documento DOCX");
+    } finally {
+      setGeneratingDocx(false);
+    }
+  }, [projetoData, selectedProjeto, etapas]);
 
   // ── Project report computations ──
   const concluidas = etapas.filter((e) => e.status === "concluido").length;
