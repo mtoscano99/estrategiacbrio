@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.ai-project-assistant]
 verify_jwt = false
+
+[functions.import-project-doc]
+verify_jwt = false
