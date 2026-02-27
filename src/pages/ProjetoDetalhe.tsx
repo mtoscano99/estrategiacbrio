@@ -233,6 +233,8 @@ function SortableEtapaItem({
 export default function ProjetoDetalhe() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const etapaRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { user, isCoordination } = useAuth();
   const [projeto, setProjeto] = useState<any>(null);
   const [etapas, setEtapas] = useState<any[]>([]);
