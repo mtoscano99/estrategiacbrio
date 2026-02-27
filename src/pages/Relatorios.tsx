@@ -1,5 +1,6 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { generateProjectDocx, type DocxProjectData, type DocxEtapa, type DocxSwotItems, type DocxKPI, type DocxAIContent } from "@/lib/docxGenerator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { FileBarChart, Download, Printer, CircleDot, CheckCircle2, Clock, AlertTriangle, XCircle, Calendar, Target, Users, DollarSign } from "lucide-react";
+import { FileBarChart, Download, Printer, CircleDot, CheckCircle2, Clock, AlertTriangle, XCircle, Calendar, Target, Users, DollarSign, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, differenceInCalendarDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
