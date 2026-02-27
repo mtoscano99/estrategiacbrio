@@ -271,6 +271,7 @@ export default function ProjetoDetalhe() {
     }
   }, [etapas, location.hash]);
 
+  const loadData = async () => {
     const [projetoRes, etapasRes, comentariosRes, profilesRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
       supabase.from("etapas_projeto").select("*").eq("projeto_id", id).order("ordem"),
