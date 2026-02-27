@@ -81,10 +81,27 @@ export default function Relatorios() {
     setSelectedProjeto(projetoId);
     const [projetoRes, etapasRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", projetoId).single(),
-      supabase.from("etapas_projeto").select("*, profiles:responsavel_id(nome)").eq("projeto_id", projetoId).order("ordem"),
+      supabase.from("etapas_projeto").select("id, nome, descricao, data_inicio, data_fim, status, ordem, valor_gasto, responsavel_id").eq("projeto_id", projetoId).order("ordem"),
     ]);
     if (projetoRes.data) setProjetoData(projetoRes.data);
-    if (etapasRes.data) setEtapas(etapasRes.data);
+    if (etapasRes.data) {
+      // Fetch responsible names separately to avoid RLS join issues on profiles
+      const responsavelIds = [...new Set(etapasRes.data.map((e: any) => e.responsavel_id).filter(Boolean))];
+      let profilesMap: Record<string, string> = {};
+      if (responsavelIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, nome")
+          .in("id", responsavelIds);
+        if (profilesData) {
+          profilesMap = Object.fromEntries(profilesData.map((p: any) => [p.id, p.nome]));
+        }
+      }
+      setEtapas(etapasRes.data.map((e: any) => ({
+        ...e,
+        responsavel_nome: e.responsavel_id ? (profilesMap[e.responsavel_id] || "–") : "–",
+      })));
+    }
   };
 
   const loadPortfolio = async () => {
