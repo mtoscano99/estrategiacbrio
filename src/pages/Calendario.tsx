@@ -13,7 +13,8 @@ import {
   isSameDay,
   isWithinInterval,
   parseISO,
-  isPast,
+  isBefore,
+  startOfDay,
   isToday,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -156,23 +157,30 @@ export default function Calendario() {
     });
   };
 
+  const isEventOverdue = (ev: CalendarEvent) => {
+    return (
+      ev.status !== "concluido" &&
+      ev.dataFim &&
+      isBefore(parseISO(ev.dataFim), startOfDay(new Date()))
+    );
+  };
+
   const getEventStyle = (ev: CalendarEvent) => {
     if (ev.tipo === "projeto") {
+      const overdue = isEventOverdue(ev);
+      if (overdue) return "bg-red-100 text-red-800 border-l-2 border-red-500 dark:bg-red-900/30 dark:text-red-300";
       return "bg-blue-100 text-blue-800 border-l-2 border-blue-500 dark:bg-blue-900/30 dark:text-blue-300";
     }
-    const isOverdue =
-      ev.status !== "concluido" && ev.dataFim && isPast(parseISO(ev.dataFim));
-    if (isOverdue) {
+    if (isEventOverdue(ev)) {
       return "bg-red-100 text-red-800 border-l-2 border-red-500 dark:bg-red-900/30 dark:text-red-300";
     }
     return "bg-emerald-100 text-emerald-800 border-l-2 border-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-300";
   };
 
   const getDotColor = (ev: CalendarEvent) => {
+    if (isEventOverdue(ev)) return "bg-red-500";
     if (ev.tipo === "projeto") return "bg-blue-500";
-    const isOverdue =
-      ev.status !== "concluido" && ev.dataFim && isPast(parseISO(ev.dataFim));
-    return isOverdue ? "bg-red-500" : "bg-emerald-500";
+    return "bg-emerald-500";
   };
 
   const MAX_VISIBLE = 3;

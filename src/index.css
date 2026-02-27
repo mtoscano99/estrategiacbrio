@@ -200,9 +200,9 @@
     print-color-adjust: exact;
   }
 
-  /* Status badges */
-  .bg-\\[hsl\\(var\\(--success\\)\\)\\],
-  .bg-\\[hsl\\(var\\(--warning\\)\\)\\] {
+  /* Status badges - print colors */
+  [data-slot="badge"],
+  .border-l-2 {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
