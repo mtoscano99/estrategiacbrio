@@ -1,46 +1,57 @@
 
 
-## Relatórios Profissionais — Plano de Redesign
+## Problema: Dados não aparecem após login
 
-### Problema
-Os relatórios atuais são básicos: listam dados em cards e tabelas simples sem seguir padrões profissionais de gestão de projetos (como relatórios de status executivo, portfólio PMO, etc.).
+### Causa Raiz
 
-### O que será feito
+O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
 
-**1. Relatório de Projeto (aba "Por Projeto" em Relatorios.tsx)** — Redesign completo para formato de Status Report executivo:
+Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
 
-- **Cabeçalho institucional**: Logo CBRio, título "Relatório de Status do Projeto", data de geração, número do relatório
-- **Resumo Executivo**: Card com status geral (semáforo), saúde, % progresso, responsável, período, área estratégica e objetivo estratégico
-- **Indicadores-chave** em grid: Progresso (% etapas concluídas com barra visual), Financeiro (orçamento vs gasto com % consumo), Prazo (dias restantes ou atraso)
-- **Cronograma visual**: Tabela de etapas com colunas Etapa, Responsável, Início, Fim, Status (badge colorido), Valor Gasto — formato profissional
-- **Seção de observações/descrição** do projeto
-- **Rodapé para impressão**: "CBRio – Gestão Estratégica – Gerado em DD/MM/AAAA"
+O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
 
-**2. Relatório de Portfólio (aba "Portfólio" em Relatorios.tsx)** — Formato de Dashboard Executivo PMO:
+### Correção
 
-- **Cabeçalho**: "Relatório de Portfólio de Projetos – CBRio", data, período de referência
-- **Painel de Saúde do Portfólio**: Contadores visuais por status (quantos não iniciados, em andamento, concluídos, atrasados, cancelados) com ícones semáforo
-- Manter gráficos e tabelas financeiras existentes (já estão bons)
-- **Rodapé para impressão**
+**Arquivo: `src/contexts/AuthContext.tsx`**
 
-**3. Relatório Financeiro (RelatorioFinanceiro.tsx)** — Ajustes de profissionalismo:
+Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
 
-- **Cabeçalho institucional** com título formal e data de geração
-- Manter estrutura atual (já está boa) mas adicionar rodapé e cabeçalho no formato de impressão
-- Melhorar print CSS para layout A4 profissional
+```typescript
+const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  (event, session) => {
+    setSession(session);
+    setUser(session?.user ?? null);
 
-**4. Print CSS global** em `src/index.css`:
+    if (session?.user) {
+      const userId = session.user.id;
+      // Defer to next tick so Supabase client sets auth headers first
+      setTimeout(() => {
+        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
+          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+            initialSessionHandled = true;
+            setLoading(false);
+          }
+        });
+      }, 0);
+    } else {
+      setProfile(null);
+      setRole(null);
+      setRoleChecked(true);
+      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+        initialSessionHandled = true;
+        setLoading(false);
+      }
+    }
+  }
+);
+```
 
-- Estilos `@media print` para layout A4 limpo: esconder sidebar, esconder botões de ação, margens adequadas, cores de fundo visíveis, page-break entre seções
+Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
 
-### Arquivos modificados
-- `src/pages/Relatorios.tsx` — Redesign completo das duas abas
-- `src/pages/RelatorioFinanceiro.tsx` — Cabeçalho/rodapé institucional
-- `src/index.css` — Print styles profissionais
+### Por que isso resolve
 
-### Detalhes técnicos
-- Dados já disponíveis no banco: projeto (nome, descrição, status, saúde, datas, orçamento, gasto, centro_custo), etapas (nome, responsável, datas, status, valor_gasto), áreas, objetivos
-- Query de etapas já busca responsável via `responsavel_id` — precisa incluir join com profiles
-- Formato de datas: `dd/MM/yyyy` usando date-fns/ptBR
-- Componentes UI já existentes: Badge, Table, Progress, Card — sem dependências novas
+- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
+- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
+- `loading` permanece `true` até ambas completarem, evitando renders prematuros
+- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
 

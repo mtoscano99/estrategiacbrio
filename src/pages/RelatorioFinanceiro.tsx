@@ -236,24 +236,31 @@ export default function RelatorioFinanceiro() {
 
   return (
     <div className="space-y-6 animate-fade-in" ref={printRef}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-            <DollarSign className="h-6 w-6 text-primary" />
-            Relatório Financeiro
-          </h1>
-          <p className="text-muted-foreground mt-1">Visão consolidada de orçamento, gastos e saldos</p>
-        </div>
-        <div className="flex gap-2 print:hidden">
-          <Button variant="outline" onClick={exportCSV}>
-            <Download className="h-4 w-4 mr-2" /> CSV
-          </Button>
-          <Button onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" /> Imprimir / PDF
-          </Button>
-        </div>
-      </div>
+      {/* Institutional Header */}
+      <Card className="shadow-sm border-t-4 border-t-primary print:border-t-2 print:shadow-none">
+        <CardContent className="pt-6 pb-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-primary">CBRio — Gestão Estratégica</p>
+              <h1 className="text-xl font-display font-bold mt-1 flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-primary" />
+                Relatório Financeiro Consolidado
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Gerado em {new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+              </p>
+            </div>
+            <div className="flex gap-2 print:hidden">
+              <Button variant="outline" onClick={exportCSV}>
+                <Download className="h-4 w-4 mr-2" /> CSV
+              </Button>
+              <Button onClick={handlePrint}>
+                <Printer className="h-4 w-4 mr-2" /> Imprimir / PDF
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Card className="shadow-sm print:hidden">
