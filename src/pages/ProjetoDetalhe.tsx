@@ -539,7 +539,7 @@ export default function ProjetoDetalhe() {
       </div>
 
       {/* Overview Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -555,11 +555,10 @@ export default function ProjetoDetalhe() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <DollarSign className="h-5 w-5 text-success" />
+              <DollarSign className="h-5 w-5 text-primary" />
               <div className="flex-1">
-                <p className="text-sm text-muted-foreground">Orçamento</p>
+                <p className="text-sm text-muted-foreground">Orçamento Previsto</p>
                 <p className="text-lg font-bold">{orcamento.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
-                <p className="text-xs text-muted-foreground">Gasto: {gasto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
                 <EditableCentroCusto
                   value={(projeto as any).centro_custo ?? ""}
                   onSave={async (val) => {
@@ -575,6 +574,23 @@ export default function ProjetoDetalhe() {
                     }
                   }}
                 />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <DollarSign className="h-5 w-5 text-destructive" />
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground">Realizado</p>
+                <p className="text-lg font-bold">{gasto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                {orcamento > 0 && (
+                  <>
+                    <p className="text-xs text-muted-foreground">{Math.round((gasto / orcamento) * 100)}% do orçamento</p>
+                    <Progress value={Math.min((gasto / orcamento) * 100, 100)} className="mt-2 h-2" />
+                  </>
+                )}
               </div>
             </div>
           </CardContent>
