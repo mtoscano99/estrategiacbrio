@@ -1,64 +1,57 @@
 
 
-## Plano: Importar Projeto a partir de Documento
+## Problema: Dados não aparecem após login
 
-### O que será feito
+### Causa Raiz
 
-Criar funcionalidade que permite ao usuário fazer upload de um documento (DOCX/PDF) na página de Novo Projeto. A IA extrai automaticamente os dados do documento e preenche o projeto no sistema, incluindo nome, descrição, etapas, orçamento, datas e itens SWOT.
+O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
 
-### Fluxo
+Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
 
-1. Usuário clica em "Importar de Documento" na página `/novo-projeto`
-2. Seleciona um arquivo DOCX ou PDF
-3. O arquivo é enviado para uma edge function que:
-   - Extrai o texto do documento
-   - Envia o texto para a IA (Gemini) com prompt estruturado
-   - IA retorna JSON com dados do projeto extraídos
-4. O formulário é preenchido automaticamente com os dados extraídos
-5. O projeto + etapas + SWOT são criados no banco ao submeter
+O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
 
-### Implementação
+### Correção
 
-**1. Nova edge function `import-project-doc`**
-- Recebe o arquivo via FormData
-- Extrai texto bruto do DOCX (parsing simples dos XML internos do .docx via JSZip no Deno) ou texto de PDF
-- Envia para Lovable AI (Gemini) com tool calling para retornar JSON estruturado:
-  ```json
-  {
-    "nome": "...",
-    "descricao": "...",
-    "data_inicio": "2026-03-01",
-    "data_fim": "2026-05-31",
-    "orcamento_previsto": 30000,
-    "centro_custo": "...",
-    "etapas": [
-      { "nome": "...", "descricao": "...", "data_inicio": "...", "data_fim": "..." }
-    ],
-    "swot": {
-      "forca": ["..."],
-      "fraqueza": ["..."],
-      "oportunidade": ["..."],
-      "ameaca": ["..."]
+**Arquivo: `src/contexts/AuthContext.tsx`**
+
+Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
+
+```typescript
+const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  (event, session) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+
+    if (session?.user) {
+      const userId = session.user.id;
+      // Defer to next tick so Supabase client sets auth headers first
+      setTimeout(() => {
+        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
+          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+            initialSessionHandled = true;
+            setLoading(false);
+          }
+        });
+      }, 0);
+    } else {
+      setProfile(null);
+      setRole(null);
+      setRoleChecked(true);
+      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+        initialSessionHandled = true;
+        setLoading(false);
+      }
     }
   }
-  ```
+);
+```
 
-**2. Atualizar `src/pages/NovoProjeto.tsx`**
-- Adicionar botão "Importar de Documento" ao lado do título
-- Input file hidden para DOCX/PDF
-- Ao selecionar: chama a edge function, preenche o formulário
-- Loading state durante processamento
-- Após preenchimento, usuário revisa e confirma
-- No submit (coordenação): criar projeto, depois inserir etapas e itens SWOT extraídos
+Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
 
-**3. Config**
-- Adicionar `[functions.import-project-doc]` com `verify_jwt = false` no config.toml
+### Por que isso resolve
 
-### Arquivos
-
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/import-project-doc/index.ts` | **Novo** — Edge function de parsing + IA |
-| `src/pages/NovoProjeto.tsx` | Botão importar, lógica de preenchimento e criação com etapas/SWOT |
-| `supabase/config.toml` | Adicionar config da nova function |
+- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
+- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
+- `loading` permanece `true` até ambas completarem, evitando renders prematuros
+- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
 
