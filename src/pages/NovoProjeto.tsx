@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,8 +10,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { FilePlus } from "lucide-react";
+import { FilePlus, Upload, Loader2 } from "lucide-react";
 import { UserAvatar } from "@/components/UserAvatar";
+
+interface ExtractedEtapa {
+  nome: string;
+  descricao?: string;
+  data_inicio?: string;
+  data_fim?: string;
+}
+
+interface ExtractedSwot {
+  forca?: string[];
+  fraqueza?: string[];
+  oportunidade?: string[];
+  ameaca?: string[];
+}
 
 export default function NovoProjeto() {
   const navigate = useNavigate();
@@ -20,6 +34,12 @@ export default function NovoProjeto() {
   const [objetivos, setObjetivos] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [extractedEtapas, setExtractedEtapas] = useState<ExtractedEtapa[]>([]);
+  const [extractedSwot, setExtractedSwot] = useState<ExtractedSwot>({});
+
   const [form, setForm] = useState({
     titulo: "",
     justificativa: "",
@@ -46,6 +66,82 @@ export default function NovoProjeto() {
     });
   }, []);
 
+  const handleImportDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = [
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/pdf",
+      "text/plain",
+    ];
+    const isAllowed = allowedTypes.includes(file.type) || file.name.endsWith(".docx") || file.name.endsWith(".pdf") || file.name.endsWith(".txt");
+
+    if (!isAllowed) {
+      toast.error("Formato não suportado. Envie um arquivo DOCX, PDF ou TXT.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 10MB.");
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-project-doc`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: "Erro ao processar documento" }));
+        throw new Error(err.error || "Erro ao processar documento");
+      }
+
+      const data = await response.json();
+
+      // Fill form with extracted data
+      setForm((prev) => ({
+        ...prev,
+        titulo: data.nome || prev.titulo,
+        justificativa: data.descricao || prev.justificativa,
+        data_inicio: data.data_inicio || prev.data_inicio,
+        data_fim: data.data_fim || prev.data_fim,
+        estimativa_orcamento: data.orcamento_previsto ? String(data.orcamento_previsto) : prev.estimativa_orcamento,
+        centro_custo: data.centro_custo || prev.centro_custo,
+        estimativa_prazo: data.estimativa_prazo || prev.estimativa_prazo,
+        entregas_esperadas: data.entregas_esperadas || prev.entregas_esperadas,
+      }));
+
+      if (data.etapas?.length) setExtractedEtapas(data.etapas);
+      if (data.swot) setExtractedSwot(data.swot);
+
+      const extras: string[] = [];
+      if (data.etapas?.length) extras.push(`${data.etapas.length} etapas`);
+      const swotCount = Object.values(data.swot || {}).reduce((a: number, b: any) => a + (b?.length || 0), 0);
+      if (swotCount > 0) extras.push(`${swotCount} itens SWOT`);
+
+      toast.success(
+        `Dados extraídos com sucesso!${extras.length ? ` (${extras.join(", ")})` : ""} Revise e confirme.`
+      );
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao importar documento");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -53,7 +149,7 @@ export default function NovoProjeto() {
 
     try {
       if (isCoordination) {
-        const { error } = await supabase.from("projetos").insert({
+        const { data: projeto, error } = await supabase.from("projetos").insert({
           nome: form.titulo,
           descricao: form.justificativa,
           area_id: form.area_id || null,
@@ -63,10 +159,52 @@ export default function NovoProjeto() {
           data_fim: form.data_fim || null,
           orcamento_previsto: form.estimativa_orcamento ? Number(form.estimativa_orcamento) : 0,
           centro_custo: form.centro_custo || null,
-        } as any);
+        } as any).select("id").single();
         if (error) throw error;
+
+        const projetoId = projeto.id;
+
+        // Insert extracted etapas
+        if (extractedEtapas.length > 0) {
+          const etapasToInsert = extractedEtapas.map((et, i) => ({
+            projeto_id: projetoId,
+            nome: et.nome,
+            descricao: et.descricao || null,
+            data_inicio: et.data_inicio || null,
+            data_fim: et.data_fim || null,
+            ordem: i,
+          }));
+          const { error: etErr } = await supabase.from("etapas_projeto").insert(etapasToInsert as any);
+          if (etErr) console.error("Erro ao inserir etapas:", etErr);
+        }
+
+        // Insert extracted SWOT items
+        const swotItems: { projeto_id: string; tipo: string; descricao: string; criado_por: string }[] = [];
+        const tipoMap: Record<string, string> = {
+          forca: "forca",
+          fraqueza: "fraqueza",
+          oportunidade: "oportunidade",
+          ameaca: "ameaca",
+        };
+        for (const [key, items] of Object.entries(extractedSwot)) {
+          if (items && Array.isArray(items)) {
+            for (const desc of items) {
+              swotItems.push({
+                projeto_id: projetoId,
+                tipo: tipoMap[key] || key,
+                descricao: desc,
+                criado_por: user.id,
+              });
+            }
+          }
+        }
+        if (swotItems.length > 0) {
+          const { error: swotErr } = await supabase.from("swot_items").insert(swotItems as any);
+          if (swotErr) console.error("Erro ao inserir SWOT:", swotErr);
+        }
+
         toast.success("Projeto criado com sucesso!");
-        navigate("/projetos");
+        navigate(`/projetos/${projetoId}`);
       } else {
         const { error } = await supabase.from("propostas_projeto").insert({
           titulo: form.titulo,
@@ -93,15 +231,71 @@ export default function NovoProjeto() {
 
   return (
     <div className="max-w-3xl mx-auto animate-fade-in">
-      <div className="mb-6">
-        <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-          <FilePlus className="h-6 w-6 text-primary" />
-          {isCoordination ? "Novo Projeto" : "Propor Projeto"}
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          {isCoordination ? "Crie um novo projeto diretamente no portfólio" : "Submeta uma proposta de projeto para aprovação da coordenação"}
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
+            <FilePlus className="h-6 w-6 text-primary" />
+            {isCoordination ? "Novo Projeto" : "Propor Projeto"}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {isCoordination ? "Crie um novo projeto diretamente no portfólio" : "Submeta uma proposta de projeto para aprovação da coordenação"}
+          </p>
+        </div>
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".docx,.pdf,.txt"
+            className="hidden"
+            onChange={handleImportDocument}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+          >
+            {importing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Processando...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4" />
+                Importar de Documento
+              </>
+            )}
+          </Button>
+        </div>
       </div>
+
+      {/* Extracted extras preview */}
+      {(extractedEtapas.length > 0 || Object.values(extractedSwot).some((v) => v && v.length > 0)) && (
+        <Card className="mb-4 border-primary/30 bg-primary/5">
+          <CardContent className="pt-4 pb-3">
+            <p className="text-sm font-medium text-primary mb-2">Dados extraídos do documento:</p>
+            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+              {extractedEtapas.length > 0 && (
+                <span className="bg-background rounded px-2 py-1">📋 {extractedEtapas.length} etapas</span>
+              )}
+              {(extractedSwot.forca?.length ?? 0) > 0 && (
+                <span className="bg-background rounded px-2 py-1">💪 {extractedSwot.forca!.length} forças</span>
+              )}
+              {(extractedSwot.fraqueza?.length ?? 0) > 0 && (
+                <span className="bg-background rounded px-2 py-1">⚠️ {extractedSwot.fraqueza!.length} fraquezas</span>
+              )}
+              {(extractedSwot.oportunidade?.length ?? 0) > 0 && (
+                <span className="bg-background rounded px-2 py-1">🎯 {extractedSwot.oportunidade!.length} oportunidades</span>
+              )}
+              {(extractedSwot.ameaca?.length ?? 0) > 0 && (
+                <span className="bg-background rounded px-2 py-1">🔴 {extractedSwot.ameaca!.length} ameaças</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Estes dados serão salvos automaticamente ao criar o projeto.</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="shadow-sm">
         <CardContent className="pt-6">
