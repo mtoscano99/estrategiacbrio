@@ -116,36 +116,41 @@
   }
 }
 
-/* Print styles for financial report PDF export */
+/* Professional print styles for A4 PDF export */
 @media print {
-  /* Hide sidebar, header, and non-print elements */
+  /* Hide UI chrome */
   [data-sidebar],
   header,
+  nav,
   .print\\:hidden,
-  nav {
+  [role="tablist"] {
     display: none !important;
   }
 
-  /* Make main content full width */
+  /* Reset layout for print flow */
   body {
     background: white !important;
     color: black !important;
     font-size: 11px !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  .flex.h-screen {
-    display: block !important;
-    height: auto !important;
+  * {
     overflow: visible !important;
   }
 
+  .flex.h-screen,
   .flex-1.flex.flex-col.overflow-hidden {
+    display: block !important;
+    height: auto !important;
     overflow: visible !important;
   }
 
   main {
     overflow: visible !important;
     height: auto !important;
+    padding: 0 !important;
   }
 
   main > div {
@@ -153,38 +158,67 @@
     padding: 0 !important;
   }
 
-  /* Cards and tables */
-  .shadow-sm {
+  /* Cards: clean borders, avoid page breaks */
+  .shadow-sm,
+  [class*="shadow"] {
     box-shadow: none !important;
     border: 1px solid hsl(0 0% 85%) !important;
     break-inside: avoid;
+    page-break-inside: avoid;
   }
 
+  /* Border-top accent visible */
+  .border-t-primary {
+    border-top-color: hsl(215 80% 45%) !important;
+    border-top-width: 3px !important;
+  }
+
+  /* Tables */
   table {
     font-size: 10px !important;
+    break-inside: auto;
   }
 
-  /* Charts: ensure they render and don't break across pages */
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* Charts */
   .recharts-responsive-container {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  /* Progress bar visible in print */
-  [role="progressbar"] {
+  /* Colored elements must print */
+  [role="progressbar"],
+  [data-slot="badge"],
+  .rounded-full,
+  .bg-primary,
+  .bg-destructive,
+  .bg-muted {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  /* Badges keep colors */
-  [data-slot="badge"] {
+  /* Status badges */
+  .bg-\\[hsl\\(var\\(--success\\)\\)\\],
+  .bg-\\[hsl\\(var\\(--warning\\)\\)\\] {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  /* Print footer visible */
+  .hidden.print\\:block {
+    display: block !important;
   }
 
   /* Page setup */
   @page {
-    size: A4 landscape;
-    margin: 1cm;
+    size: A4 portrait;
+    margin: 1.5cm 1.5cm 2cm 1.5cm;
+  }
+
+  @page :first {
+    margin-top: 1cm;
   }
 }

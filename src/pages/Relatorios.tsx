@@ -5,10 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from "@/components/ui/table";
-import { FileBarChart, Download, Printer, Briefcase } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { FileBarChart, Download, Printer, CircleDot, CheckCircle2, Clock, AlertTriangle, XCircle, Calendar, Target, Users, DollarSign } from "lucide-react";
 import { toast } from "sonner";
+import { format, differenceInCalendarDays, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const STATUS_LABELS: Record<string, string> = {
   nao_iniciado: "Não Iniciado",
@@ -18,16 +22,44 @@ const STATUS_LABELS: Record<string, string> = {
   cancelado: "Cancelado",
 };
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  nao_iniciado: "secondary",
-  em_andamento: "default",
-  concluido: "default",
-  atrasado: "destructive",
-  cancelado: "outline",
+const SAUDE_LABELS: Record<string, string> = {
+  no_prazo: "No Prazo",
+  atencao: "Atenção",
+  atrasado: "Atrasado",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  nao_iniciado: "bg-muted text-muted-foreground",
+  em_andamento: "bg-primary text-primary-foreground",
+  concluido: "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]",
+  atrasado: "bg-destructive text-destructive-foreground",
+  cancelado: "bg-muted text-muted-foreground line-through",
+};
+
+const SAUDE_COLORS: Record<string, string> = {
+  no_prazo: "text-[hsl(var(--success))]",
+  atencao: "text-[hsl(var(--warning))]",
+  atrasado: "text-destructive",
+};
+
+const STATUS_ICONS: Record<string, React.ReactNode> = {
+  nao_iniciado: <CircleDot className="h-4 w-4" />,
+  em_andamento: <Clock className="h-4 w-4" />,
+  concluido: <CheckCircle2 className="h-4 w-4" />,
+  atrasado: <AlertTriangle className="h-4 w-4" />,
+  cancelado: <XCircle className="h-4 w-4" />,
 };
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const fmtDate = (d: string | null) => {
+  if (!d) return "–";
+  try { return format(parseISO(d), "dd/MM/yyyy", { locale: ptBR }); } catch { return d; }
+};
+
+const hoje = new Date();
+const dataGeracao = format(hoje, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 
 export default function Relatorios() {
   const [projetos, setProjetos] = useState<any[]>([]);
@@ -49,7 +81,7 @@ export default function Relatorios() {
     setSelectedProjeto(projetoId);
     const [projetoRes, etapasRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", projetoId).single(),
-      supabase.from("etapas_projeto").select("*").eq("projeto_id", projetoId).order("ordem"),
+      supabase.from("etapas_projeto").select("*, profiles:responsavel_id(nome)").eq("projeto_id", projetoId).order("ordem"),
     ]);
     if (projetoRes.data) setProjetoData(projetoRes.data);
     if (etapasRes.data) setEtapas(etapasRes.data);
@@ -72,11 +104,33 @@ export default function Relatorios() {
     toast.success("Relatório enviado para impressão");
   };
 
-  // Portfolio computations
+  // ── Project report computations ──
+  const concluidas = etapas.filter((e) => e.status === "concluido").length;
+  const progresso = etapas.length > 0 ? Math.round((concluidas / etapas.length) * 100) : 0;
+  const orcamento = Number(projetoData?.orcamento_previsto || 0);
+  const gasto = Number(projetoData?.valor_gasto || 0);
+  const saldo = orcamento - gasto;
+  const consumo = orcamento > 0 ? (gasto / orcamento) * 100 : 0;
+  const gastoEtapas = etapas.reduce((s, e) => s + Number(e.valor_gasto || 0), 0);
+
+  const diasRestantes = useMemo(() => {
+    if (!projetoData?.data_fim) return null;
+    try {
+      return differenceInCalendarDays(parseISO(projetoData.data_fim), hoje);
+    } catch { return null; }
+  }, [projetoData]);
+
+  // ── Portfolio computations ──
   const totais = useMemo(() => {
     const orcamento = portfolioProjetos.reduce((s, p) => s + Number(p.orcamento_previsto || 0), 0);
     const gasto = portfolioProjetos.reduce((s, p) => s + Number(p.valor_gasto || 0), 0);
     return { total: portfolioProjetos.length, orcamento, gasto, saldo: orcamento - gasto };
+  }, [portfolioProjetos]);
+
+  const statusCount = useMemo(() => {
+    const counts: Record<string, number> = { nao_iniciado: 0, em_andamento: 0, concluido: 0, atrasado: 0, cancelado: 0 };
+    portfolioProjetos.forEach((p) => { counts[p.status] = (counts[p.status] || 0) + 1; });
+    return counts;
   }, [portfolioProjetos]);
 
   const resumoPorArea = useMemo(() => {
@@ -112,40 +166,37 @@ export default function Relatorios() {
       Number(p.orcamento_previsto || 0) - Number(p.valor_gasto || 0),
     ]);
     rows.push(["TOTAL", "", "", "", totais.orcamento, totais.gasto, totais.saldo]);
-
     const csvContent = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(";")).join("\n");
     const bom = "\uFEFF";
     const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const date = new Date().toISOString().slice(0, 10);
-    a.download = `portfolio_${date}.csv`;
+    a.download = `portfolio_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("CSV exportado com sucesso");
   };
 
-  const concluidas = etapas.filter((e) => e.status === "concluido").length;
-  const progresso = etapas.length > 0 ? Math.round((concluidas / etapas.length) * 100) : 0;
-
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-          <FileBarChart className="h-6 w-6 text-primary" />
-          Relatórios
-        </h1>
-        <p className="text-muted-foreground mt-1">Gere relatórios padronizados dos projetos</p>
+      <div className="flex items-center justify-between print:hidden">
+        <div>
+          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
+            <FileBarChart className="h-6 w-6 text-primary" />
+            Relatórios
+          </h1>
+          <p className="text-muted-foreground mt-1">Relatórios executivos de projetos e portfólio</p>
+        </div>
       </div>
 
       <Tabs defaultValue="projeto" onValueChange={(v) => v === "portfolio" && loadPortfolio()}>
-        <TabsList>
-          <TabsTrigger value="projeto">Por Projeto</TabsTrigger>
-          <TabsTrigger value="portfolio">Portfólio</TabsTrigger>
+        <TabsList className="print:hidden">
+          <TabsTrigger value="projeto">Relatório de Projeto</TabsTrigger>
+          <TabsTrigger value="portfolio">Portfólio Executivo</TabsTrigger>
         </TabsList>
 
-        {/* ── Aba Por Projeto ── */}
+        {/* ══════════ ABA: RELATÓRIO DE PROJETO ══════════ */}
         <TabsContent value="projeto" className="space-y-6">
           <Card className="shadow-sm print:hidden">
             <CardContent className="pt-6">
@@ -171,120 +222,299 @@ export default function Relatorios() {
           </Card>
 
           {projetoData && (
-            <div className="space-y-4" id="report-content">
-              <Card className="shadow-sm">
-                <CardHeader className="border-b">
-                  <div className="flex items-center justify-between">
+            <div className="space-y-6" id="report-content">
+              {/* ── Cabeçalho Institucional ── */}
+              <Card className="shadow-sm border-t-4 border-t-primary">
+                <CardContent className="pt-6 pb-4">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Relatório do Projeto</p>
-                      <CardTitle className="text-xl mt-1">{projetoData.nome}</CardTitle>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-primary">CBRio — Gestão Estratégica</p>
+                      <h2 className="text-xl font-bold mt-1">Relatório de Status do Projeto</h2>
+                      <p className="text-sm text-muted-foreground mt-0.5">{dataGeracao}</p>
                     </div>
-                    <Badge>{STATUS_LABELS[projetoData.status]}</Badge>
+                    <div className="text-right text-xs text-muted-foreground">
+                      <p>Nº {projetoData.id?.slice(0, 8).toUpperCase()}</p>
+                      <p className="mt-1">Versão 1.0</p>
+                    </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* ── Resumo Executivo ── */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    1. Resumo Executivo
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6 space-y-6">
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Dados Gerais</h3>
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm">
-                      <div><span className="text-muted-foreground">Área:</span> {projetoData.areas_estrategicas?.nome || "–"}</div>
-                      <div><span className="text-muted-foreground">Responsável:</span> {projetoData.profiles?.nome || "–"}</div>
-                      <div><span className="text-muted-foreground">Objetivo Estratégico:</span> {projetoData.objetivos_estrategicos?.titulo || "–"}</div>
-                      <div><span className="text-muted-foreground">Período:</span> {projetoData.data_inicio || "–"} → {projetoData.data_fim || "–"}</div>
-                    </div>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-bold flex-1">{projetoData.nome}</h3>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[projetoData.status]}`}>
+                      {STATUS_ICONS[projetoData.status]}
+                      {STATUS_LABELS[projetoData.status]}
+                    </span>
+                    {projetoData.saude && (
+                      <span className={`inline-flex items-center gap-1 text-xs font-semibold ${SAUDE_COLORS[projetoData.saude]}`}>
+                        ● {SAUDE_LABELS[projetoData.saude]}
+                      </span>
+                    )}
                   </div>
-
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Financeiro</h3>
-                    <div className="grid gap-2 sm:grid-cols-3 text-sm">
-                      <div className="p-3 rounded-lg bg-muted text-center">
-                        <p className="text-xs text-muted-foreground">Orçado</p>
-                        <p className="font-bold text-lg">{fmt(Number(projetoData.orcamento_previsto))}</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted text-center">
-                        <p className="text-xs text-muted-foreground">Gasto</p>
-                        <p className="font-bold text-lg">{fmt(Number(projetoData.valor_gasto))}</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted text-center">
-                        <p className="text-xs text-muted-foreground">Saldo</p>
-                        <p className="font-bold text-lg">{fmt(Number(projetoData.orcamento_previsto) - Number(projetoData.valor_gasto))}</p>
-                      </div>
+                  <Separator />
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-muted-foreground">Área:</span>
+                      <span className="font-medium">{projetoData.areas_estrategicas?.nome || "–"}</span>
                     </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                      Cronograma – {progresso}% concluído ({concluidas}/{etapas.length} etapas)
-                    </h3>
-                    {etapas.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Nenhuma etapa cadastrada</p>
-                    ) : (
-                      <div className="space-y-1">
-                        {etapas.map((e, i) => (
-                          <div key={e.id} className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0 text-sm">
-                            <span className="text-muted-foreground w-6 text-right">{i + 1}.</span>
-                            <span className="flex-1">{e.nome}</span>
-                            <Badge variant={e.status === "concluido" ? "default" : e.status === "atrasado" ? "destructive" : "secondary"} className="text-xs">
-                              {STATUS_LABELS[e.status]}
-                            </Badge>
-                          </div>
-                        ))}
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-muted-foreground">Responsável:</span>
+                      <span className="font-medium">{projetoData.profiles?.nome || "–"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-muted-foreground">Obj. Estratégico:</span>
+                      <span className="font-medium">{projetoData.objetivos_estrategicos?.titulo || "–"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-muted-foreground">Início:</span>
+                      <span className="font-medium">{fmtDate(projetoData.data_inicio)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-muted-foreground">Término:</span>
+                      <span className="font-medium">{fmtDate(projetoData.data_fim)}</span>
+                    </div>
+                    {projetoData.centro_custo && (
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-muted-foreground">Centro Custo:</span>
+                        <span className="font-medium">{projetoData.centro_custo}</span>
                       </div>
                     )}
                   </div>
+                </CardContent>
+              </Card>
 
-                  {projetoData.descricao && (
-                    <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Observações</h3>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{projetoData.descricao}</p>
+              {/* ── Indicadores-Chave ── */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    2. Indicadores-Chave
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {/* Progresso */}
+                    <div className="p-4 rounded-lg border bg-card">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">Progresso</p>
+                      <p className="text-3xl font-bold">{progresso}%</p>
+                      <Progress value={progresso} className="h-2 mt-2" />
+                      <p className="text-xs text-muted-foreground mt-1.5">{concluidas} de {etapas.length} etapas concluídas</p>
                     </div>
+                    {/* Financeiro */}
+                    <div className="p-4 rounded-lg border bg-card">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">Financeiro</p>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Orçado</span>
+                          <span className="font-semibold">{fmt(orcamento)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Gasto</span>
+                          <span className="font-semibold">{fmt(gasto)}</span>
+                        </div>
+                        <Separator className="my-1" />
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Saldo</span>
+                          <span className={`font-bold ${saldo < 0 ? "text-destructive" : "text-[hsl(var(--success))]"}`}>{fmt(saldo)}</span>
+                        </div>
+                      </div>
+                      <Progress value={Math.min(consumo, 100)} className="h-2 mt-2" />
+                      <p className="text-xs text-muted-foreground mt-1">{consumo.toFixed(1)}% do orçamento consumido</p>
+                    </div>
+                    {/* Prazo */}
+                    <div className="p-4 rounded-lg border bg-card">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">Prazo</p>
+                      {diasRestantes !== null ? (
+                        <>
+                          <p className={`text-3xl font-bold ${diasRestantes < 0 ? "text-destructive" : diasRestantes <= 30 ? "text-[hsl(var(--warning))]" : "text-[hsl(var(--success))]"}`}>
+                            {diasRestantes < 0 ? `${Math.abs(diasRestantes)}d atraso` : `${diasRestantes}d`}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1.5">
+                            {diasRestantes < 0 ? "Projeto além do prazo" : diasRestantes === 0 ? "Encerra hoje" : "dias restantes para conclusão"}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sem data de término definida</p>
+                      )}
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {fmtDate(projetoData.data_inicio)} → {fmtDate(projetoData.data_fim)}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ── Cronograma Detalhado ── */}
+              <Card className="shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    3. Cronograma de Etapas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {etapas.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma etapa cadastrada para este projeto</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10">#</TableHead>
+                          <TableHead>Etapa</TableHead>
+                          <TableHead>Responsável</TableHead>
+                          <TableHead>Início</TableHead>
+                          <TableHead>Término</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Valor Gasto</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {etapas.map((e, i) => (
+                          <TableRow key={e.id}>
+                            <TableCell className="text-muted-foreground font-medium">{i + 1}</TableCell>
+                            <TableCell className="font-medium">{e.nome}</TableCell>
+                            <TableCell className="text-muted-foreground">{(e as any).profiles?.nome || "–"}</TableCell>
+                            <TableCell className="text-sm">{fmtDate(e.data_inicio)}</TableCell>
+                            <TableCell className="text-sm">{fmtDate(e.data_fim)}</TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[e.status]}`}>
+                                {STATUS_LABELS[e.status]}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">{fmt(Number(e.valor_gasto || 0))}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                      <TableFooter>
+                        <TableRow>
+                          <TableCell colSpan={6} className="font-bold">Total de gastos em etapas</TableCell>
+                          <TableCell className="text-right font-bold">{fmt(gastoEtapas)}</TableCell>
+                        </TableRow>
+                      </TableFooter>
+                    </Table>
                   )}
                 </CardContent>
               </Card>
+
+              {/* ── Observações ── */}
+              {projetoData.descricao && (
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                      4. Observações
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{projetoData.descricao}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* ── Rodapé para impressão ── */}
+              <div className="hidden print:block text-xs text-muted-foreground text-center pt-6 border-t mt-6">
+                <p>CBRio – Gestão Estratégica – Relatório de Status do Projeto</p>
+                <p>Gerado em {format(hoje, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+              </div>
             </div>
           )}
         </TabsContent>
 
-        {/* ── Aba Portfólio ── */}
+        {/* ══════════ ABA: PORTFÓLIO EXECUTIVO ══════════ */}
         <TabsContent value="portfolio" className="space-y-6">
-          {/* Cards de resumo */}
+          {/* Cabeçalho institucional */}
+          <Card className="shadow-sm border-t-4 border-t-primary">
+            <CardContent className="pt-6 pb-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-primary">CBRio — Gestão Estratégica</p>
+                  <h2 className="text-xl font-bold mt-1">Relatório de Portfólio de Projetos</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">{dataGeracao}</p>
+                </div>
+                <div className="flex gap-2 print:hidden">
+                  <Button variant="outline" size="sm" onClick={exportCSV}>
+                    <Download className="h-4 w-4 mr-2" /> CSV
+                  </Button>
+                  <Button size="sm" onClick={handlePrint}>
+                    <Printer className="h-4 w-4 mr-2" /> Imprimir / PDF
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Painel de Saúde do Portfólio */}
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            {[
+              { key: "nao_iniciado", label: "Não Iniciados", icon: <CircleDot className="h-5 w-5" />, color: "text-muted-foreground" },
+              { key: "em_andamento", label: "Em Andamento", icon: <Clock className="h-5 w-5" />, color: "text-primary" },
+              { key: "concluido", label: "Concluídos", icon: <CheckCircle2 className="h-5 w-5" />, color: "text-[hsl(var(--success))]" },
+              { key: "atrasado", label: "Atrasados", icon: <AlertTriangle className="h-5 w-5" />, color: "text-destructive" },
+              { key: "cancelado", label: "Cancelados", icon: <XCircle className="h-5 w-5" />, color: "text-muted-foreground" },
+            ].map((s) => (
+              <Card key={s.key} className="shadow-sm">
+                <CardContent className="pt-5 pb-4 text-center">
+                  <div className={`mx-auto mb-2 ${s.color}`}>{s.icon}</div>
+                  <p className="text-3xl font-bold">{statusCount[s.key] || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Cards financeiros */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
+            <Card className="shadow-sm">
               <CardContent className="pt-6 text-center">
-                <p className="text-xs text-muted-foreground uppercase">Total de Projetos</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Total de Projetos</p>
                 <p className="text-3xl font-bold mt-1">{totais.total}</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="shadow-sm">
               <CardContent className="pt-6 text-center">
-                <p className="text-xs text-muted-foreground uppercase">Orçamento Total</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Orçamento Total</p>
                 <p className="text-2xl font-bold mt-1">{fmt(totais.orcamento)}</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="shadow-sm">
               <CardContent className="pt-6 text-center">
-                <p className="text-xs text-muted-foreground uppercase">Total Gasto</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Gasto</p>
                 <p className="text-2xl font-bold mt-1">{fmt(totais.gasto)}</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="shadow-sm">
               <CardContent className="pt-6 text-center">
-                <p className="text-xs text-muted-foreground uppercase">Saldo Total</p>
-                <p className="text-2xl font-bold mt-1">{fmt(totais.saldo)}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Saldo Total</p>
+                <p className={`text-2xl font-bold mt-1 ${totais.saldo < 0 ? "text-destructive" : ""}`}>{fmt(totais.saldo)}</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Resumo por Área */}
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg">Resumo Financeiro por Área Estratégica</CardTitle>
+              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Resumo Financeiro por Área Estratégica
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Área</TableHead>
-                    <TableHead className="text-center">Qtd Projetos</TableHead>
+                    <TableHead className="text-center">Projetos</TableHead>
                     <TableHead className="text-right">Orçamento</TableHead>
                     <TableHead className="text-right">Gasto</TableHead>
                     <TableHead className="text-right">Saldo</TableHead>
@@ -322,14 +552,13 @@ export default function Relatorios() {
           </Card>
 
           {/* Tabela de Projetos */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">Todos os Projetos</CardTitle>
-              <Button onClick={exportCSV} size="sm">
-                <Download className="h-4 w-4 mr-2" /> Exportar CSV
-              </Button>
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Detalhamento por Projeto
+              </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -350,15 +579,15 @@ export default function Relatorios() {
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.nome}</TableCell>
                         <TableCell>{p.areas_estrategicas?.nome || "–"}</TableCell>
-                        <TableCell>{p.profiles?.nome || "–"}</TableCell>
+                        <TableCell className="text-muted-foreground">{p.profiles?.nome || "–"}</TableCell>
                         <TableCell>
-                          <Badge variant={STATUS_VARIANT[p.status] || "secondary"} className="text-xs">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[p.status]}`}>
                             {STATUS_LABELS[p.status] || p.status}
-                          </Badge>
+                          </span>
                         </TableCell>
                         <TableCell className="text-right">{fmt(orc)}</TableCell>
                         <TableCell className="text-right">{fmt(gas)}</TableCell>
-                        <TableCell className="text-right">{fmt(orc - gas)}</TableCell>
+                        <TableCell className={`text-right ${orc - gas < 0 ? "text-destructive font-medium" : ""}`}>{fmt(orc - gas)}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -366,6 +595,12 @@ export default function Relatorios() {
               </Table>
             </CardContent>
           </Card>
+
+          {/* Rodapé para impressão */}
+          <div className="hidden print:block text-xs text-muted-foreground text-center pt-6 border-t mt-6">
+            <p>CBRio – Gestão Estratégica – Relatório de Portfólio de Projetos</p>
+            <p>Gerado em {format(hoje, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
