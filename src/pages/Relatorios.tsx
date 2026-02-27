@@ -383,11 +383,41 @@ export default function Relatorios() {
                 </CardContent>
               </Card>
 
+              {/* ── Resumo de Status das Etapas ── */}
+              {etapas.length > 0 && (
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                      3. Status das Etapas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      {[
+                        { key: "nao_iniciado", count: naoIniciadas, label: "Não Iniciadas", icon: <CircleDot className="h-5 w-5" /> },
+                        { key: "em_andamento", count: emAndamento, label: "Em Andamento", icon: <Clock className="h-5 w-5" /> },
+                        { key: "concluido", count: concluidas, label: "Concluídas", icon: <CheckCircle2 className="h-5 w-5" /> },
+                        { key: "atrasado", count: atrasadas, label: "Atrasadas", icon: <AlertTriangle className="h-5 w-5" /> },
+                        { key: "cancelado", count: canceladas, label: "Canceladas", icon: <XCircle className="h-5 w-5" /> },
+                      ].map((item) => (
+                        <div key={item.key} className={`flex flex-col items-center p-3 rounded-lg border text-center ${item.count > 0 ? "" : "opacity-50"}`}>
+                          <span className={`mb-1 ${item.key === "concluido" ? "text-[hsl(var(--success))]" : item.key === "atrasado" ? "text-destructive" : item.key === "em_andamento" ? "text-primary" : "text-muted-foreground"}`}>
+                            {item.icon}
+                          </span>
+                          <span className="text-2xl font-bold">{item.count}</span>
+                          <span className="text-xs text-muted-foreground">{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* ── Cronograma Detalhado ── */}
               <Card className="shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    3. Cronograma de Etapas
+                    4. Cronograma de Etapas
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -410,8 +440,11 @@ export default function Relatorios() {
                         {etapas.map((e, i) => (
                           <TableRow key={e.id}>
                             <TableCell className="text-muted-foreground font-medium">{i + 1}</TableCell>
-                            <TableCell className="font-medium">{e.nome}</TableCell>
-                            <TableCell className="text-muted-foreground">{(e as any).profiles?.nome || "–"}</TableCell>
+                            <TableCell>
+                              <span className="font-medium">{e.nome}</span>
+                              {e.descricao && <p className="text-xs text-muted-foreground mt-0.5">{e.descricao}</p>}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{e.responsavel_nome || "–"}</TableCell>
                             <TableCell className="text-sm">{fmtDate(e.data_inicio)}</TableCell>
                             <TableCell className="text-sm">{fmtDate(e.data_fim)}</TableCell>
                             <TableCell>
