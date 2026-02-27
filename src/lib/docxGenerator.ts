@@ -113,6 +113,16 @@ const fmtD = (d: string | null) => {
 
 const fmtMoney = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+async function fetchLogoBuffer(): Promise<ArrayBuffer | null> {
+  try {
+    const resp = await fetch("/images/logo-cbrio.png");
+    if (!resp.ok) return null;
+    return await resp.arrayBuffer();
+  } catch {
+    return null;
+  }
+}
+
 const STATUS_LABELS: Record<string, string> = {
   nao_iniciado: "Não Iniciado", em_andamento: "Em Andamento",
   concluido: "Concluído", atrasado: "Atrasado", cancelado: "Cancelado",
