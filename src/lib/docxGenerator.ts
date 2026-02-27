@@ -2,7 +2,7 @@ import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType,
   TableOfContents, HeadingLevel, BorderStyle, WidthType, ShadingType,
-  PageNumber, PageBreak,
+  PageNumber, PageBreak, ImageRun,
 } from "docx";
 import { saveAs } from "file-saver";
 import { format, parseISO, differenceInCalendarMonths } from "date-fns";
@@ -113,6 +113,16 @@ const fmtD = (d: string | null) => {
 
 const fmtMoney = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+async function fetchLogoBuffer(): Promise<ArrayBuffer | null> {
+  try {
+    const resp = await fetch("/images/logo-cbrio.png");
+    if (!resp.ok) return null;
+    return await resp.arrayBuffer();
+  } catch {
+    return null;
+  }
+}
+
 const STATUS_LABELS: Record<string, string> = {
   nao_iniciado: "Não Iniciado", em_andamento: "Em Andamento",
   concluido: "Concluído", atrasado: "Atrasado", cancelado: "Cancelado",
@@ -176,9 +186,23 @@ export async function generateProjectDocx(
 ) {
   const children: any[] = [];
   const today = format(new Date(), "dd/MM/yyyy");
+  const logoBuffer = await fetchLogoBuffer();
 
   // ══════ CAPA ══════
-  for (let i = 0; i < 4; i++) children.push(emptyP());
+  if (logoBuffer) {
+    children.push(emptyP());
+    children.push(new Paragraph({
+      alignment: AlignmentType.LEFT,
+      children: [new ImageRun({
+        data: logoBuffer,
+        transformation: { width: 80, height: 80 },
+        type: "png",
+      })],
+    }));
+    children.push(emptyP());
+  } else {
+    for (let i = 0; i < 4; i++) children.push(emptyP());
+  }
 
   children.push(new Table({
     width: { size: 80, type: WidthType.PERCENTAGE },
@@ -474,7 +498,14 @@ export async function generateProjectDocx(
         default: new Header({
           children: [new Paragraph({
             alignment: AlignmentType.RIGHT,
-            children: [new TextRun({ text: `CBRio – ${projeto.nome}`, font: "Aptos", size: 18, color: GRAY, italics: true })],
+            children: [
+              ...(logoBuffer ? [new ImageRun({
+                data: logoBuffer,
+                transformation: { width: 28, height: 28 },
+                type: "png",
+              }), new TextRun({ text: "  ", font: "Aptos", size: 18 })] : []),
+              new TextRun({ text: `CBRio – ${projeto.nome}`, font: "Aptos", size: 18, color: GRAY, italics: true }),
+            ],
           })],
         }),
       },
