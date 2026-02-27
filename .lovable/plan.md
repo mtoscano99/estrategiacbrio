@@ -1,65 +1,57 @@
 
 
-## Plano: Geração de Relatório DOCX Profissional
+## Problema: Dados não aparecem após login
 
-### O que será feito
+### Causa Raiz
 
-Adicionar funcionalidade de gerar um documento `.docx` profissional diretamente do sistema, seguindo o formato exato do documento anexado (capa institucional, sumário, resumo executivo, SWOT, objetivos, planos de ação, orçamento, KPIs, riscos, cronograma Gantt e considerações finais). Os dados são preenchidos a partir do projeto selecionado, e seções com dados insuficientes são complementadas pela IA.
+O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
 
-### Estrutura do documento gerado
+Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
 
-1. **Capa** — Nome da organização, título do projeto, subtítulo (área + prazo), data, diretoria
-2. **Sumário** (Table of Contents)
-3. **Resumo Executivo** — Descrição do projeto (dados do banco ou gerado por IA)
-4. **Direcionadores Estratégicos** — Objetivo estratégico vinculado, área estratégica (gerado por IA se insuficiente)
-5. **Diagnóstico e Análise** — Tabela de etapas com criticidade, situação atual vs desejada, **Análise SWOT** (dados da tabela `swot_items`)
-6. **Objetivos e Metas** — Etapas agrupadas por período/mês, com indicadores e metas
-7. **Planos de Ação** — Tabela detalhada de etapas: Área, Ação, Responsável, Início, Término, Entrega
-8. **Orçamento Estimado** — Tabela com valores por etapa + total do projeto
-9. **Monitoramento e Avaliação** — KPIs vinculados ao projeto (tabela `kpis` + `kpi_medicoes`)
-10. **Cronograma Geral** — Gantt simplificado baseado nas datas das etapas
-11. **Considerações Finais** — Gerado por IA a partir do contexto do projeto
+O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
 
-### Implementação
+### Correção
 
-**1. Instalar dependências**
-- `docx` (v9.x) — gera documentos .docx no browser
-- `file-saver` — download do arquivo gerado
+**Arquivo: `src/contexts/AuthContext.tsx`**
 
-**2. Criar gerador de DOCX** (`src/lib/docxGenerator.ts`)
-- Função `generateProjectDocx(projectData, etapas, swotItems, kpis)` que monta o Document seguindo exatamente as cores, fontes, bordas e layout do código JS fornecido
-- Helpers: `headerCell`, `cell`, `heading1/2/3`, `para`, `ganttRow` — mesma lógica do código fornecido
-- Cores: ACCENT `#156082`, ACCENT_DARK `#0F4761`, HEADER_BG `#D5E8F0`, LIGHT_BG `#F2F8FB`
-- Fonte: Aptos em todo o documento
+Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
 
-**3. Criar gerador de conteúdo IA** — Novo modo `docx` na edge function `ai-project-assistant`
-- Recebe contexto do projeto e retorna textos para seções faltantes (resumo executivo, direcionadores, diagnóstico, considerações finais)
-- Retorno estruturado via tool calling
+```typescript
+const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  (event, session) => {
+    setSession(session);
+    setUser(session?.user ?? null);
 
-**4. Adicionar botão "Gerar DOCX"** em `src/pages/Relatorios.tsx`
-- Na aba "Relatório de Projeto", ao lado do botão Imprimir
-- Ao clicar: busca dados complementares (SWOT, KPIs), chama IA para preencher lacunas, gera o DOCX e faz download
-- Loading state durante geração
+    if (session?.user) {
+      const userId = session.user.id;
+      // Defer to next tick so Supabase client sets auth headers first
+      setTimeout(() => {
+        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
+          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+            initialSessionHandled = true;
+            setLoading(false);
+          }
+        });
+      }, 0);
+    } else {
+      setProfile(null);
+      setRole(null);
+      setRoleChecked(true);
+      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+        initialSessionHandled = true;
+        setLoading(false);
+      }
+    }
+  }
+);
+```
 
-**5. Buscar dados adicionais para o documento**
-- `swot_items` do projeto
-- `kpis` vinculados ao objetivo do projeto + últimas medições
-- Dados já carregados: projeto, etapas, área, objetivo, responsável
+Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
 
-### Arquivos
+### Por que isso resolve
 
-| Arquivo | Ação |
-|---------|------|
-| `package.json` | Adicionar `docx` e `file-saver` |
-| `src/lib/docxGenerator.ts` | **Novo** — Gerador completo do documento |
-| `src/pages/Relatorios.tsx` | Botão "Gerar DOCX" + lógica de busca de dados e chamada IA |
-| `supabase/functions/ai-project-assistant/index.ts` | Novo modo `docx` para gerar textos complementares |
-
-### Detalhes técnicos
-
-- `docx` funciona no browser via `Packer.toBlob()` (sem necessidade de Node.js/fs)
-- `file-saver` usa `saveAs(blob, filename)` para download
-- O documento segue fielmente o layout do código JS fornecido: mesmas cores, bordas, espaçamentos, tabelas com shading alternado
-- Dados dinâmicos: nome do projeto, etapas, SWOT, orçamento, datas, responsáveis são do banco
-- Dados gerados por IA: resumo executivo, direcionadores estratégicos, diagnóstico situacional, considerações finais — apenas quando o projeto não tem descrição suficiente
+- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
+- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
+- `loading` permanece `true` até ambas completarem, evitando renders prematuros
+- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
 

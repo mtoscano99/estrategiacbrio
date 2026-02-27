@@ -26,6 +26,8 @@ serve(async (req) => {
       return await handleSwot(context, LOVABLE_API_KEY);
     } else if (mode === "etapas") {
       return await handleEtapas(context, LOVABLE_API_KEY);
+    } else if (mode === "docx") {
+      return await handleDocx(context, LOVABLE_API_KEY);
     }
 
     return new Response(JSON.stringify({ error: "Invalid mode" }), {
@@ -46,16 +48,19 @@ function buildProjectPrompt(ctx: any): string {
     `Projeto: ${ctx.nome}`,
     ctx.descricao ? `Descrição: ${ctx.descricao}` : "",
     `Status: ${ctx.status}`,
-    `Progresso: ${ctx.progresso}%`,
+    ctx.progresso ? `Progresso: ${ctx.progresso}%` : "",
     ctx.orcamento ? `Orçamento previsto: R$ ${ctx.orcamento}` : "",
     ctx.gasto ? `Valor gasto: R$ ${ctx.gasto}` : "",
     ctx.dataInicio ? `Início: ${ctx.dataInicio}` : "",
     ctx.dataFim ? `Prazo: ${ctx.dataFim}` : "",
+    ctx.area ? `Área: ${ctx.area}` : "",
+    ctx.objetivo ? `Objetivo estratégico: ${ctx.objetivo}` : "",
+    ctx.responsavel ? `Responsável: ${ctx.responsavel}` : "",
   ].filter(Boolean);
 
   if (ctx.etapas?.length) {
     parts.push("\nEtapas:");
-    ctx.etapas.forEach((e: any) => parts.push(`- ${e.nome} (${e.status})`));
+    ctx.etapas.forEach((e: any) => parts.push(`- ${e.nome} (${e.status})${e.descricao ? ': ' + e.descricao : ''}`));
   }
 
   if (ctx.swot) {
@@ -67,7 +72,80 @@ function buildProjectPrompt(ctx: any): string {
     }
   }
 
+  if (ctx.kpis?.length) {
+    parts.push("\nKPIs:");
+    ctx.kpis.forEach((k: any) => parts.push(`- ${k.nome}: meta ${k.meta} ${k.unidade}`));
+  }
+
   return parts.join("\n");
+}
+
+async function handleDocx(ctx: any, apiKey: string) {
+  const systemPrompt = `Você é um consultor de gestão estratégica para uma organização pública/religiosa brasileira (Igreja Comunidade Batista do Rio de Janeiro - CBRio).
+Analise o projeto fornecido e gere textos profissionais para as seguintes seções de um documento de planejamento estratégico:
+
+1. resumo_executivo: 2-3 parágrafos descrevendo o projeto, seus objetivos e importância. Seja formal e estratégico.
+2. direcionadores: 2-3 parágrafos sobre os direcionadores estratégicos do projeto, alinhados à missão da CBRio ("Alcançar pessoas para Jesus!") e seus valores (servir em comunidade, viver generosamente, excelência). Explique como o projeto se conecta a esses valores.
+3. diagnostico: 2-3 parágrafos sobre o diagnóstico situacional - a situação atual que motivou o projeto e a situação desejada após sua conclusão.
+4. consideracoes_finais: 2-3 parágrafos com considerações finais sobre o impacto esperado do projeto, sua viabilidade e o compromisso da CBRio com a excelência na gestão.
+
+Use os dados reais do projeto fornecidos. Separe parágrafos com duas quebras de linha (\\n\\n). Responda em português brasileiro formal.`;
+
+  const response = await fetch(GATEWAY_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: buildProjectPrompt(ctx) },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "generate_docx_content",
+            description: "Retorna textos profissionais para o documento DOCX de planejamento estratégico.",
+            parameters: {
+              type: "object",
+              properties: {
+                resumo_executivo: { type: "string", description: "Texto do resumo executivo (2-3 parágrafos separados por \\n\\n)" },
+                direcionadores: { type: "string", description: "Texto dos direcionadores estratégicos (2-3 parágrafos separados por \\n\\n)" },
+                diagnostico: { type: "string", description: "Texto do diagnóstico situacional (2-3 parágrafos separados por \\n\\n)" },
+                consideracoes_finais: { type: "string", description: "Texto das considerações finais (2-3 parágrafos separados por \\n\\n)" },
+              },
+              required: ["resumo_executivo", "direcionadores", "diagnostico", "consideracoes_finais"],
+              additionalProperties: false,
+            },
+          },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "generate_docx_content" } },
+    }),
+  });
+
+  if (!response.ok) {
+    return handleGatewayError(response);
+  }
+
+  const data = await response.json();
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (!toolCall) {
+    return new Response(JSON.stringify({
+      resumo_executivo: "Informações insuficientes para gerar o resumo executivo.",
+      direcionadores: "Informações insuficientes para gerar os direcionadores estratégicos.",
+      diagnostico: "Informações insuficientes para gerar o diagnóstico.",
+      consideracoes_finais: "Informações insuficientes para gerar as considerações finais.",
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
+  const args = JSON.parse(toolCall.function.arguments);
+  return new Response(JSON.stringify(args), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
 async function handleAnalise(ctx: any, apiKey: string) {
