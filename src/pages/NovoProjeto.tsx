@@ -35,6 +35,7 @@ export default function NovoProjeto() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [extractedEtapas, setExtractedEtapas] = useState<ExtractedEtapa[]>([]);
@@ -66,10 +67,7 @@ export default function NovoProjeto() {
     });
   }, []);
 
-  const handleImportDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processFile = async (file: File) => {
     const allowedTypes = [
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/pdf",
@@ -110,7 +108,6 @@ export default function NovoProjeto() {
 
       const data = await response.json();
 
-      // Fill form with extracted data
       setForm((prev) => ({
         ...prev,
         titulo: data.nome || prev.titulo,
@@ -140,6 +137,28 @@ export default function NovoProjeto() {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleImportDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -231,43 +250,64 @@ export default function NovoProjeto() {
 
   return (
     <div className="max-w-3xl mx-auto animate-fade-in">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-            <FilePlus className="h-6 w-6 text-primary" />
-            {isCoordination ? "Novo Projeto" : "Propor Projeto"}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {isCoordination ? "Crie um novo projeto diretamente no portfólio" : "Submeta uma proposta de projeto para aprovação da coordenação"}
-          </p>
+      {/* Drop zone overlay */}
+      <div
+        className={`relative mb-6 rounded-xl border-2 border-dashed transition-colors ${
+          dragging
+            ? "border-primary bg-primary/5"
+            : "border-muted-foreground/20 hover:border-muted-foreground/40"
+        } ${importing ? "pointer-events-none opacity-60" : ""}`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
+        <div className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-display font-bold flex items-center gap-2">
+              <FilePlus className="h-6 w-6 text-primary" />
+              {isCoordination ? "Novo Projeto" : "Propor Projeto"}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {isCoordination ? "Crie um novo projeto diretamente no portfólio" : "Submeta uma proposta de projeto para aprovação da coordenação"}
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".docx,.pdf,.txt"
+              className="hidden"
+              onChange={handleImportDocument}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Processando...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Importar de Documento
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">ou arraste um arquivo aqui</p>
+          </div>
         </div>
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".docx,.pdf,.txt"
-            className="hidden"
-            onChange={handleImportDocument}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-          >
-            {importing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Processando...
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4" />
-                Importar de Documento
-              </>
-            )}
-          </Button>
-        </div>
+        {dragging && (
+          <div className="absolute inset-0 flex items-center justify-center bg-primary/10 rounded-xl z-10">
+            <div className="text-center">
+              <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
+              <p className="text-sm font-medium text-primary">Solte o arquivo para importar</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Editable extracted etapas */}
