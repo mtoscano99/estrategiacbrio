@@ -776,7 +776,19 @@ export default function ProjetoDetalhe() {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
-                  <Select value={novaEtapa.responsavel_id} onValueChange={(val) => setNovaEtapa({ ...novaEtapa, responsavel_id: val })}>
+                  <Select
+                    value={novaEtapa.responsavel_externo_id ? `ext:${novaEtapa.responsavel_externo_id}` : novaEtapa.responsavel_id}
+                    onValueChange={(val) => {
+                      if (val === "__novo_externo__") {
+                        setPendingExternoEtapaId("__new__");
+                        setShowNovoContato(true);
+                      } else if (val.startsWith("ext:")) {
+                        setNovaEtapa({ ...novaEtapa, responsavel_id: "", responsavel_externo_id: val.replace("ext:", "") });
+                      } else {
+                        setNovaEtapa({ ...novaEtapa, responsavel_id: val, responsavel_externo_id: "" });
+                      }
+                    }}
+                  >
                     <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                     <SelectContent>
                       {profiles.map((p) => (
@@ -787,6 +799,27 @@ export default function ProjetoDetalhe() {
                           </div>
                         </SelectItem>
                       ))}
+                      {contatosExternos.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Externos</div>
+                          {contatosExternos.map((c) => (
+                            <SelectItem key={`ext:${c.id}`} value={`ext:${c.id}`}>
+                              <div className="flex items-center gap-2">
+                                <UserPlus className="h-4 w-4 text-muted-foreground" />
+                                <span>{c.nome}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                      <div className="border-t mt-1 pt-1">
+                        <SelectItem value="__novo_externo__">
+                          <div className="flex items-center gap-2 text-primary">
+                            <UserPlus className="h-4 w-4" />
+                            <span>Adicionar externo...</span>
+                          </div>
+                        </SelectItem>
+                      </div>
                     </SelectContent>
                   </Select>
                 </div>
@@ -895,6 +928,22 @@ export default function ProjetoDetalhe() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* External Contact Dialog */}
+      <NovoContatoExternoDialog
+        open={showNovoContato}
+        onOpenChange={setShowNovoContato}
+        onCreated={(contato) => {
+          setContatosExternos((prev) => [...prev, contato]);
+          if (pendingExternoEtapaId === "__new__") {
+            setNovaEtapa({ ...novaEtapa, responsavel_id: "", responsavel_externo_id: contato.id });
+          } else if (pendingExternoEtapaId) {
+            updateEtapa(pendingExternoEtapaId, "responsavel_externo_id", contato.id);
+            updateEtapa(pendingExternoEtapaId, "responsavel_id", null);
+          }
+          setPendingExternoEtapaId(null);
+        }}
+      />
     </div>
   );
 }
