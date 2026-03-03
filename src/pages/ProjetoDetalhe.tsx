@@ -98,18 +98,22 @@ function SortableEtapaItem({
   etapa,
   index,
   profiles,
+  contatosExternos,
   expandedEtapa,
   setExpandedEtapa,
   updateEtapa,
   deleteEtapa,
+  onAddExterno,
 }: {
   etapa: any;
   index: number;
   profiles: any[];
+  contatosExternos: any[];
   expandedEtapa: string | null;
   setExpandedEtapa: (id: string | null) => void;
   updateEtapa: (id: string, field: string, value: any) => void;
   deleteEtapa: (id: string) => void;
+  onAddExterno: (etapaId: string) => void;
 }) {
   const {
     attributes,
@@ -127,7 +131,9 @@ function SortableEtapaItem({
     opacity: isDragging ? 0.8 : 1,
   };
 
-  const responsavelNome = profiles.find((p: any) => p.id === etapa.responsavel_id)?.nome;
+  const responsavelNome = etapa.responsavel_externo_id
+    ? contatosExternos.find((c: any) => c.id === etapa.responsavel_externo_id)?.nome
+    : profiles.find((p: any) => p.id === etapa.responsavel_id)?.nome;
 
   return (
     <div ref={setNodeRef} style={style}>
