@@ -285,8 +285,11 @@ export default function ProjetoDetalhe() {
   const [etapas, setEtapas] = useState<any[]>([]);
   const [comentarios, setComentarios] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [contatosExternos, setContatosExternos] = useState<any[]>([]);
+  const [showNovoContato, setShowNovoContato] = useState(false);
+  const [pendingExternoEtapaId, setPendingExternoEtapaId] = useState<string | null>(null);
   const [novoComentario, setNovoComentario] = useState("");
-  const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", valor_gasto: "" });
+  const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", responsavel_externo_id: "", valor_gasto: "" });
   const [showAddEtapa, setShowAddEtapa] = useState(false);
   const [expandedEtapa, setExpandedEtapa] = useState<string | null>(null);
 
