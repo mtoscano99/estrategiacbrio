@@ -19,7 +19,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   ArrowLeft, Calendar, DollarSign, Plus, Send, CheckCircle2,
   Clock, AlertTriangle, BarChart3, Sparkles, Loader2, Check, X,
-  ChevronDown, Trash2, User, GripVertical,
+  ChevronDown, Trash2, User, GripVertical, UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -29,6 +29,7 @@ import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import SWOTMatrix from "@/components/projetos/SWOTMatrix";
 import AnexosProjeto from "@/components/projetos/AnexosProjeto";
 import { UserAvatar } from "@/components/UserAvatar";
+import NovoContatoExternoDialog from "@/components/projetos/NovoContatoExternoDialog";
 import {
   DndContext,
   closestCenter,
