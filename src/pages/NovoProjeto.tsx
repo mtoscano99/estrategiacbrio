@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { FilePlus, Upload, Loader2, Trash2, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
+import { FilePlus, Upload, Loader2, Trash2, ChevronDown, ChevronUp, GripVertical, UserPlus } from "lucide-react";
 import { UserAvatar } from "@/components/UserAvatar";
+import NovoContatoExternoDialog from "@/components/projetos/NovoContatoExternoDialog";
 
 interface ExtractedEtapa {
   nome: string;
@@ -41,12 +42,16 @@ export default function NovoProjeto() {
   const [extractedEtapas, setExtractedEtapas] = useState<ExtractedEtapa[]>([]);
   const [extractedSwot, setExtractedSwot] = useState<ExtractedSwot>({});
 
+  const [contatosExternos, setContatosExternos] = useState<any[]>([]);
+  const [showNovoContato, setShowNovoContato] = useState(false);
+
   const [form, setForm] = useState({
     titulo: "",
     justificativa: "",
     objetivo_id: "",
     area_id: "",
     responsavel_id: "",
+    responsavel_externo_id: "",
     data_inicio: "",
     data_fim: "",
     estimativa_prazo: "",
@@ -60,10 +65,12 @@ export default function NovoProjeto() {
       supabase.from("areas_estrategicas").select("id, nome"),
       supabase.from("objetivos_estrategicos").select("id, titulo, ano"),
       supabase.from("profiles").select("id, nome, avatar_url"),
-    ]).then(([areasRes, objRes, profilesRes]) => {
+      supabase.from("contatos_externos").select("id, nome, email, cargo, organizacao"),
+    ]).then(([areasRes, objRes, profilesRes, contatosRes]) => {
       if (areasRes.data) setAreas(areasRes.data);
       if (objRes.data) setObjetivos(objRes.data);
       if (profilesRes.data) setProfiles(profilesRes.data);
+      if (contatosRes.data) setContatosExternos(contatosRes.data);
     });
   }, []);
 
@@ -173,7 +180,8 @@ export default function NovoProjeto() {
           descricao: form.justificativa,
           area_id: form.area_id || null,
           objetivo_id: form.objetivo_id || null,
-          responsavel_id: form.responsavel_id || user.id,
+          responsavel_id: form.responsavel_externo_id ? null : (form.responsavel_id || user.id),
+          responsavel_externo_id: form.responsavel_externo_id || null,
           data_inicio: form.data_inicio || null,
           data_fim: form.data_fim || null,
           orcamento_previsto: form.estimativa_orcamento ? Number(form.estimativa_orcamento) : 0,
@@ -502,22 +510,65 @@ export default function NovoProjeto() {
               <h2 className="text-lg font-semibold mb-4">Planejamento</h2>
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
+                <div className="space-y-2">
                     <Label>Responsável</Label>
                     {isCoordination ? (
-                      <Select value={form.responsavel_id} onValueChange={(v) => update("responsavel_id", v)}>
-                        <SelectTrigger><SelectValue placeholder="Selecione o responsável" /></SelectTrigger>
-                        <SelectContent>
-                          {profiles.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              <div className="flex items-center gap-2">
-                                <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
-                                <span>{p.nome}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <>
+                        <Select
+                          value={form.responsavel_externo_id ? `ext:${form.responsavel_externo_id}` : form.responsavel_id}
+                          onValueChange={(v) => {
+                            if (v === "__novo_externo__") {
+                              setShowNovoContato(true);
+                            } else if (v.startsWith("ext:")) {
+                              setForm({ ...form, responsavel_id: "", responsavel_externo_id: v.replace("ext:", "") });
+                            } else {
+                              setForm({ ...form, responsavel_id: v, responsavel_externo_id: "" });
+                            }
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Selecione o responsável" /></SelectTrigger>
+                          <SelectContent>
+                            {profiles.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                <div className="flex items-center gap-2">
+                                  <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
+                                  <span>{p.nome}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                            {contatosExternos.length > 0 && (
+                              <>
+                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Contatos Externos</div>
+                                {contatosExternos.map((c) => (
+                                  <SelectItem key={`ext:${c.id}`} value={`ext:${c.id}`}>
+                                    <div className="flex items-center gap-2">
+                                      <UserPlus className="h-4 w-4 text-muted-foreground" />
+                                      <span>{c.nome}</span>
+                                      {c.organizacao && <span className="text-xs text-muted-foreground">({c.organizacao})</span>}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </>
+                            )}
+                            <div className="border-t mt-1 pt-1">
+                              <SelectItem value="__novo_externo__">
+                                <div className="flex items-center gap-2 text-primary">
+                                  <UserPlus className="h-4 w-4" />
+                                  <span>Adicionar pessoa externa...</span>
+                                </div>
+                              </SelectItem>
+                            </div>
+                          </SelectContent>
+                        </Select>
+                        <NovoContatoExternoDialog
+                          open={showNovoContato}
+                          onOpenChange={setShowNovoContato}
+                          onCreated={(contato) => {
+                            setContatosExternos((prev) => [...prev, contato]);
+                            setForm({ ...form, responsavel_id: "", responsavel_externo_id: contato.id });
+                          }}
+                        />
+                      </>
                     ) : (
                       <Input value="Você (proponente)" disabled />
                     )}
