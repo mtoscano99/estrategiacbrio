@@ -1,57 +1,63 @@
 
 
-## Problema: Dados não aparecem após login
+## Plano: Adicionar responsáveis externos (sem login no sistema)
 
-### Causa Raiz
+### Problema atual
+O campo "Responsável" em projetos e etapas só aceita usuários cadastrados (profiles). Não é possível atribuir alguém externo ao sistema.
 
-O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
+### Solução
+Criar uma tabela `contatos_externos` para armazenar pessoas que não possuem login, e permitir que o campo de responsável aceite tanto usuários do sistema quanto contatos externos.
 
-Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
+### Implementação
 
-O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
-
-### Correção
-
-**Arquivo: `src/contexts/AuthContext.tsx`**
-
-Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
-
-```typescript
-const { data: { subscription } } = supabase.auth.onAuthStateChange(
-  (event, session) => {
-    setSession(session);
-    setUser(session?.user ?? null);
-
-    if (session?.user) {
-      const userId = session.user.id;
-      // Defer to next tick so Supabase client sets auth headers first
-      setTimeout(() => {
-        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
-          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-            initialSessionHandled = true;
-            setLoading(false);
-          }
-        });
-      }, 0);
-    } else {
-      setProfile(null);
-      setRole(null);
-      setRoleChecked(true);
-      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-        initialSessionHandled = true;
-        setLoading(false);
-      }
-    }
-  }
+**1. Nova tabela `contatos_externos`** (migration)
+```sql
+CREATE TABLE public.contatos_externos (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome text NOT NULL,
+  email text,
+  telefone text,
+  cargo text,
+  organizacao text,
+  criado_por uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.contatos_externos ENABLE ROW LEVEL SECURITY;
+
+-- Todos autenticados podem ler e inserir
+CREATE POLICY "Authenticated can read contatos" ON public.contatos_externos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Authenticated can insert contatos" ON public.contatos_externos FOR INSERT TO authenticated WITH CHECK (criado_por = auth.uid());
+CREATE POLICY "Coordenacao can manage contatos" ON public.contatos_externos FOR ALL TO authenticated USING (has_role(auth.uid(), 'coordenacao'));
 ```
 
-Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
+**2. Adicionar coluna `responsavel_externo_id` nas tabelas `projetos` e `etapas_projeto`**
+```sql
+ALTER TABLE public.projetos ADD COLUMN responsavel_externo_id uuid REFERENCES public.contatos_externos(id);
+ALTER TABLE public.etapas_projeto ADD COLUMN responsavel_externo_id uuid REFERENCES public.contatos_externos(id);
+```
 
-### Por que isso resolve
+**3. Atualizar `src/pages/NovoProjeto.tsx`**
+- No seletor de responsável, adicionar opção "Adicionar pessoa externa..." no final da lista
+- Ao selecionar, abrir um mini-dialog para preencher nome, email, cargo (opcional)
+- Salvar o contato externo na tabela e definir `responsavel_externo_id` no formulário
+- Exibir tanto profiles quanto contatos externos no dropdown
 
-- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
-- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
-- `loading` permanece `true` até ambas completarem, evitando renders prematuros
-- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
+**4. Atualizar `src/pages/ProjetoDetalhe.tsx`**
+- No seletor de responsável do projeto e das etapas, incluir contatos externos
+- Ao exibir o nome do responsável, verificar ambas as colunas (`responsavel_id` e `responsavel_externo_id`)
+- Adicionar opção de criar novo contato externo inline
+
+**5. Atualizar componentes de exibição** (Relatorios, RelatorioFinanceiro, Calendario)
+- Ao exibir nome do responsável, consultar também `contatos_externos` quando `responsavel_externo_id` estiver preenchido
+
+### Arquivos
+
+| Arquivo | Ação |
+|---------|------|
+| Migration SQL | Nova tabela + colunas |
+| `src/pages/NovoProjeto.tsx` | Seletor com opção de contato externo |
+| `src/pages/ProjetoDetalhe.tsx` | Seletor e exibição com externos |
+| `src/pages/Relatorios.tsx` | Exibir nome de externos |
+| `src/pages/RelatorioFinanceiro.tsx` | Exibir nome de externos |
 
