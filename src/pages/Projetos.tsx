@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Calendar, DollarSign } from "lucide-react";
+import { Search, Plus, Calendar, DollarSign, FileStack } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -64,11 +64,18 @@ export default function Projetos() {
           <h1 className="text-2xl font-display font-bold">Projetos</h1>
           <p className="text-muted-foreground mt-1">{filtered.length} projeto(s) encontrado(s)</p>
         </div>
-        <Button asChild>
-          <Link to="/novo-projeto">
-            <Plus className="h-4 w-4 mr-2" /> Novo Projeto
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/importar-projetos">
+              <FileStack className="h-4 w-4 mr-2" /> Importar em Massa
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to="/novo-projeto">
+              <Plus className="h-4 w-4 mr-2" /> Novo Projeto
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}

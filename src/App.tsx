@@ -19,6 +19,7 @@ import RelatorioFinanceiro from "./pages/RelatorioFinanceiro";
 import MeuPerfil from "./pages/MeuPerfil";
 import SelecionarPerfil from "./pages/SelecionarPerfil";
 import Calendario from "./pages/Calendario";
+import ImportarProjetosMassa from "./pages/ImportarProjetosMassa";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -65,6 +66,7 @@ const App = () => (
               <Route path="/projetos" element={<Projetos />} />
               <Route path="/projetos/:id" element={<ProjetoDetalhe />} />
               <Route path="/novo-projeto" element={<NovoProjeto />} />
+              <Route path="/importar-projetos" element={<ImportarProjetosMassa />} />
               <Route path="/calendario" element={<Calendario />} />
               <Route path="/aprovacoes" element={<Aprovacoes />} />
               <Route path="/planejamento" element={<PlanejamentoEstrategico />} />
