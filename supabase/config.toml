@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.import-project-doc]
 verify_jwt = false
+
+[functions.import-projects-bulk]
+verify_jwt = false
