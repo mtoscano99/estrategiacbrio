@@ -472,12 +472,13 @@ export default function ProjetoDetalhe() {
       descricao: novaEtapa.descricao || null,
       data_inicio: novaEtapa.data_inicio || null,
       data_fim: novaEtapa.data_fim || null,
-      responsavel_id: novaEtapa.responsavel_id || null,
+      responsavel_id: novaEtapa.responsavel_externo_id ? null : (novaEtapa.responsavel_id || null),
+      responsavel_externo_id: novaEtapa.responsavel_externo_id || null,
       valor_gasto: parseFloat(novaEtapa.valor_gasto) || 0,
       ordem: etapas.length,
     } as any);
     if (error) { toast.error("Erro ao adicionar etapa"); return; }
-    setNovaEtapa({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", valor_gasto: "" });
+    setNovaEtapa({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", responsavel_externo_id: "", valor_gasto: "" });
     setShowAddEtapa(false);
     loadData();
     toast.success("Etapa adicionada");
@@ -832,10 +833,12 @@ export default function ProjetoDetalhe() {
                       etapa={etapa}
                       index={i}
                       profiles={profiles}
+                      contatosExternos={contatosExternos}
                       expandedEtapa={expandedEtapa}
                       setExpandedEtapa={setExpandedEtapa}
                       updateEtapa={updateEtapa}
                       deleteEtapa={deleteEtapa}
+                      onAddExterno={(etapaId) => { setPendingExternoEtapaId(etapaId); setShowNovoContato(true); }}
                     />
                   </div>
                 ))}
