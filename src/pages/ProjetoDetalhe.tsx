@@ -19,7 +19,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   ArrowLeft, Calendar, DollarSign, Plus, Send, CheckCircle2,
   Clock, AlertTriangle, BarChart3, Sparkles, Loader2, Check, X,
-  ChevronDown, Trash2, User, GripVertical,
+  ChevronDown, Trash2, User, GripVertical, UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -29,6 +29,7 @@ import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import SWOTMatrix from "@/components/projetos/SWOTMatrix";
 import AnexosProjeto from "@/components/projetos/AnexosProjeto";
 import { UserAvatar } from "@/components/UserAvatar";
+import NovoContatoExternoDialog from "@/components/projetos/NovoContatoExternoDialog";
 import {
   DndContext,
   closestCenter,
@@ -97,18 +98,22 @@ function SortableEtapaItem({
   etapa,
   index,
   profiles,
+  contatosExternos,
   expandedEtapa,
   setExpandedEtapa,
   updateEtapa,
   deleteEtapa,
+  onAddExterno,
 }: {
   etapa: any;
   index: number;
   profiles: any[];
+  contatosExternos: any[];
   expandedEtapa: string | null;
   setExpandedEtapa: (id: string | null) => void;
   updateEtapa: (id: string, field: string, value: any) => void;
   deleteEtapa: (id: string) => void;
+  onAddExterno: (etapaId: string) => void;
 }) {
   const {
     attributes,
@@ -126,7 +131,9 @@ function SortableEtapaItem({
     opacity: isDragging ? 0.8 : 1,
   };
 
-  const responsavelNome = profiles.find((p: any) => p.id === etapa.responsavel_id)?.nome;
+  const responsavelNome = etapa.responsavel_externo_id
+    ? contatosExternos.find((c: any) => c.id === etapa.responsavel_externo_id)?.nome
+    : profiles.find((p: any) => p.id === etapa.responsavel_id)?.nome;
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -193,7 +200,20 @@ function SortableEtapaItem({
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
-                  <Select value={etapa.responsavel_id || ""} onValueChange={(val) => updateEtapa(etapa.id, "responsavel_id", val)}>
+                  <Select
+                    value={etapa.responsavel_externo_id ? `ext:${etapa.responsavel_externo_id}` : (etapa.responsavel_id || "")}
+                    onValueChange={(val) => {
+                      if (val === "__novo_externo__") {
+                        onAddExterno(etapa.id);
+                      } else if (val.startsWith("ext:")) {
+                        updateEtapa(etapa.id, "responsavel_externo_id", val.replace("ext:", ""));
+                        updateEtapa(etapa.id, "responsavel_id", null);
+                      } else {
+                        updateEtapa(etapa.id, "responsavel_id", val);
+                        updateEtapa(etapa.id, "responsavel_externo_id", null);
+                      }
+                    }}
+                  >
                     <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                     <SelectContent>
                       {profiles.map((p: any) => (
@@ -204,6 +224,27 @@ function SortableEtapaItem({
                           </div>
                         </SelectItem>
                       ))}
+                      {contatosExternos.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Externos</div>
+                          {contatosExternos.map((c: any) => (
+                            <SelectItem key={`ext:${c.id}`} value={`ext:${c.id}`}>
+                              <div className="flex items-center gap-2">
+                                <UserPlus className="h-4 w-4 text-muted-foreground" />
+                                <span>{c.nome}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                      <div className="border-t mt-1 pt-1">
+                        <SelectItem value="__novo_externo__">
+                          <div className="flex items-center gap-2 text-primary">
+                            <UserPlus className="h-4 w-4" />
+                            <span>Adicionar externo...</span>
+                          </div>
+                        </SelectItem>
+                      </div>
                     </SelectContent>
                   </Select>
                 </div>
@@ -244,8 +285,11 @@ export default function ProjetoDetalhe() {
   const [etapas, setEtapas] = useState<any[]>([]);
   const [comentarios, setComentarios] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [contatosExternos, setContatosExternos] = useState<any[]>([]);
+  const [showNovoContato, setShowNovoContato] = useState(false);
+  const [pendingExternoEtapaId, setPendingExternoEtapaId] = useState<string | null>(null);
   const [novoComentario, setNovoComentario] = useState("");
-  const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", valor_gasto: "" });
+  const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", responsavel_externo_id: "", valor_gasto: "" });
   const [showAddEtapa, setShowAddEtapa] = useState(false);
   const [expandedEtapa, setExpandedEtapa] = useState<string | null>(null);
 
@@ -276,16 +320,18 @@ export default function ProjetoDetalhe() {
   }, [etapas, location.hash]);
 
   const loadData = async () => {
-    const [projetoRes, etapasRes, comentariosRes, profilesRes] = await Promise.all([
+    const [projetoRes, etapasRes, comentariosRes, profilesRes, contatosRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
       supabase.from("etapas_projeto").select("*").eq("projeto_id", id).order("ordem"),
       supabase.from("comentarios").select("*, profiles!comentarios_autor_id_fkey(nome)").eq("projeto_id", id).order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, nome, avatar_url"),
+      supabase.from("contatos_externos").select("id, nome, email, cargo, organizacao"),
     ]);
     if (projetoRes.data) setProjeto(projetoRes.data);
     if (etapasRes.data) setEtapas(etapasRes.data);
     if (comentariosRes.data) setComentarios(comentariosRes.data);
     if (profilesRes.data) setProfiles(profilesRes.data);
+    if (contatosRes.data) setContatosExternos(contatosRes.data);
   };
 
   const buildProjectContext = useCallback(() => {
@@ -426,12 +472,13 @@ export default function ProjetoDetalhe() {
       descricao: novaEtapa.descricao || null,
       data_inicio: novaEtapa.data_inicio || null,
       data_fim: novaEtapa.data_fim || null,
-      responsavel_id: novaEtapa.responsavel_id || null,
+      responsavel_id: novaEtapa.responsavel_externo_id ? null : (novaEtapa.responsavel_id || null),
+      responsavel_externo_id: novaEtapa.responsavel_externo_id || null,
       valor_gasto: parseFloat(novaEtapa.valor_gasto) || 0,
       ordem: etapas.length,
     } as any);
     if (error) { toast.error("Erro ao adicionar etapa"); return; }
-    setNovaEtapa({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", valor_gasto: "" });
+    setNovaEtapa({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", responsavel_externo_id: "", valor_gasto: "" });
     setShowAddEtapa(false);
     loadData();
     toast.success("Etapa adicionada");
@@ -729,7 +776,19 @@ export default function ProjetoDetalhe() {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
-                  <Select value={novaEtapa.responsavel_id} onValueChange={(val) => setNovaEtapa({ ...novaEtapa, responsavel_id: val })}>
+                  <Select
+                    value={novaEtapa.responsavel_externo_id ? `ext:${novaEtapa.responsavel_externo_id}` : novaEtapa.responsavel_id}
+                    onValueChange={(val) => {
+                      if (val === "__novo_externo__") {
+                        setPendingExternoEtapaId("__new__");
+                        setShowNovoContato(true);
+                      } else if (val.startsWith("ext:")) {
+                        setNovaEtapa({ ...novaEtapa, responsavel_id: "", responsavel_externo_id: val.replace("ext:", "") });
+                      } else {
+                        setNovaEtapa({ ...novaEtapa, responsavel_id: val, responsavel_externo_id: "" });
+                      }
+                    }}
+                  >
                     <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
                     <SelectContent>
                       {profiles.map((p) => (
@@ -740,6 +799,27 @@ export default function ProjetoDetalhe() {
                           </div>
                         </SelectItem>
                       ))}
+                      {contatosExternos.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Externos</div>
+                          {contatosExternos.map((c) => (
+                            <SelectItem key={`ext:${c.id}`} value={`ext:${c.id}`}>
+                              <div className="flex items-center gap-2">
+                                <UserPlus className="h-4 w-4 text-muted-foreground" />
+                                <span>{c.nome}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                      <div className="border-t mt-1 pt-1">
+                        <SelectItem value="__novo_externo__">
+                          <div className="flex items-center gap-2 text-primary">
+                            <UserPlus className="h-4 w-4" />
+                            <span>Adicionar externo...</span>
+                          </div>
+                        </SelectItem>
+                      </div>
                     </SelectContent>
                   </Select>
                 </div>
@@ -786,10 +866,12 @@ export default function ProjetoDetalhe() {
                       etapa={etapa}
                       index={i}
                       profiles={profiles}
+                      contatosExternos={contatosExternos}
                       expandedEtapa={expandedEtapa}
                       setExpandedEtapa={setExpandedEtapa}
                       updateEtapa={updateEtapa}
                       deleteEtapa={deleteEtapa}
+                      onAddExterno={(etapaId) => { setPendingExternoEtapaId(etapaId); setShowNovoContato(true); }}
                     />
                   </div>
                 ))}
@@ -846,6 +928,22 @@ export default function ProjetoDetalhe() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* External Contact Dialog */}
+      <NovoContatoExternoDialog
+        open={showNovoContato}
+        onOpenChange={setShowNovoContato}
+        onCreated={(contato) => {
+          setContatosExternos((prev) => [...prev, contato]);
+          if (pendingExternoEtapaId === "__new__") {
+            setNovaEtapa({ ...novaEtapa, responsavel_id: "", responsavel_externo_id: contato.id });
+          } else if (pendingExternoEtapaId) {
+            updateEtapa(pendingExternoEtapaId, "responsavel_externo_id", contato.id);
+            updateEtapa(pendingExternoEtapaId, "responsavel_id", null);
+          }
+          setPendingExternoEtapaId(null);
+        }}
+      />
     </div>
   );
 }

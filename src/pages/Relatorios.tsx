@@ -82,13 +82,23 @@ export default function Relatorios() {
     setSelectedProjeto(projetoId);
     const [projetoRes, etapasRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", projetoId).single(),
-      supabase.from("etapas_projeto").select("id, nome, descricao, data_inicio, data_fim, status, ordem, valor_gasto, responsavel_id").eq("projeto_id", projetoId).order("ordem"),
+      supabase.from("etapas_projeto").select("id, nome, descricao, data_inicio, data_fim, status, ordem, valor_gasto, responsavel_id, responsavel_externo_id").eq("projeto_id", projetoId).order("ordem"),
     ]);
-    if (projetoRes.data) setProjetoData(projetoRes.data);
+    if (projetoRes.data) {
+      // Also resolve external responsavel for the project
+      const proj = projetoRes.data as any;
+      if (proj.responsavel_externo_id && !proj.profiles?.nome) {
+        const { data: extData } = await supabase.from("contatos_externos").select("nome").eq("id", proj.responsavel_externo_id).single();
+        if (extData) proj.profiles = { nome: extData.nome };
+      }
+      setProjetoData(proj);
+    }
     if (etapasRes.data) {
       // Fetch responsible names separately to avoid RLS join issues on profiles
       const responsavelIds = [...new Set(etapasRes.data.map((e: any) => e.responsavel_id).filter(Boolean))];
+      const externoIds = [...new Set(etapasRes.data.map((e: any) => e.responsavel_externo_id).filter(Boolean))];
       let profilesMap: Record<string, string> = {};
+      let externosMap: Record<string, string> = {};
       if (responsavelIds.length > 0) {
         const { data: profilesData } = await supabase
           .from("profiles")
@@ -98,9 +108,20 @@ export default function Relatorios() {
           profilesMap = Object.fromEntries(profilesData.map((p: any) => [p.id, p.nome]));
         }
       }
+      if (externoIds.length > 0) {
+        const { data: extData } = await supabase
+          .from("contatos_externos")
+          .select("id, nome")
+          .in("id", externoIds);
+        if (extData) {
+          externosMap = Object.fromEntries(extData.map((c: any) => [c.id, c.nome]));
+        }
+      }
       setEtapas(etapasRes.data.map((e: any) => ({
         ...e,
-        responsavel_nome: e.responsavel_id ? (profilesMap[e.responsavel_id] || "–") : "–",
+        responsavel_nome: e.responsavel_externo_id
+          ? (externosMap[e.responsavel_externo_id] || "Externo")
+          : e.responsavel_id ? (profilesMap[e.responsavel_id] || "–") : "–",
       })));
     }
   };

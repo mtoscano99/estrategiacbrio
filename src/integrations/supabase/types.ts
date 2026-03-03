@@ -173,6 +173,39 @@ export type Database = {
           },
         ]
       }
+      contatos_externos: {
+        Row: {
+          cargo: string | null
+          created_at: string
+          criado_por: string
+          email: string | null
+          id: string
+          nome: string
+          organizacao: string | null
+          telefone: string | null
+        }
+        Insert: {
+          cargo?: string | null
+          created_at?: string
+          criado_por: string
+          email?: string | null
+          id?: string
+          nome: string
+          organizacao?: string | null
+          telefone?: string | null
+        }
+        Update: {
+          cargo?: string | null
+          created_at?: string
+          criado_por?: string
+          email?: string | null
+          id?: string
+          nome?: string
+          organizacao?: string | null
+          telefone?: string | null
+        }
+        Relationships: []
+      }
       dados_financeiros: {
         Row: {
           created_at: string
@@ -251,6 +284,7 @@ export type Database = {
           nome: string
           ordem: number | null
           projeto_id: string
+          responsavel_externo_id: string | null
           responsavel_id: string | null
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
@@ -265,6 +299,7 @@ export type Database = {
           nome: string
           ordem?: number | null
           projeto_id: string
+          responsavel_externo_id?: string | null
           responsavel_id?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -279,6 +314,7 @@ export type Database = {
           nome?: string
           ordem?: number | null
           projeto_id?: string
+          responsavel_externo_id?: string | null
           responsavel_id?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -290,6 +326,13 @@ export type Database = {
             columns: ["projeto_id"]
             isOneToOne: false
             referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etapas_projeto_responsavel_externo_id_fkey"
+            columns: ["responsavel_externo_id"]
+            isOneToOne: false
+            referencedRelation: "contatos_externos"
             referencedColumns: ["id"]
           },
         ]
@@ -536,6 +579,7 @@ export type Database = {
           nome: string
           objetivo_id: string | null
           orcamento_previsto: number | null
+          responsavel_externo_id: string | null
           responsavel_id: string | null
           saude: Database["public"]["Enums"]["project_health"] | null
           status: Database["public"]["Enums"]["project_status"]
@@ -553,6 +597,7 @@ export type Database = {
           nome: string
           objetivo_id?: string | null
           orcamento_previsto?: number | null
+          responsavel_externo_id?: string | null
           responsavel_id?: string | null
           saude?: Database["public"]["Enums"]["project_health"] | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -570,6 +615,7 @@ export type Database = {
           nome?: string
           objetivo_id?: string | null
           orcamento_previsto?: number | null
+          responsavel_externo_id?: string | null
           responsavel_id?: string | null
           saude?: Database["public"]["Enums"]["project_health"] | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -589,6 +635,13 @@ export type Database = {
             columns: ["objetivo_id"]
             isOneToOne: false
             referencedRelation: "objetivos_estrategicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projetos_responsavel_externo_id_fkey"
+            columns: ["responsavel_externo_id"]
+            isOneToOne: false
+            referencedRelation: "contatos_externos"
             referencedColumns: ["id"]
           },
           {

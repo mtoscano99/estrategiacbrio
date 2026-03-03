@@ -104,10 +104,18 @@ export default function RelatorioFinanceiro() {
   const loadData = async () => {
     const { data } = await supabase
       .from("projetos")
-      .select("id, nome, status, orcamento_previsto, valor_gasto, centro_custo, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome)")
+      .select("id, nome, status, orcamento_previsto, valor_gasto, centro_custo, responsavel_externo_id, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome)")
       .order("nome");
 
     if (data) {
+      // Resolve external contact names
+      const externoIds = [...new Set((data as any[]).map((p) => p.responsavel_externo_id).filter(Boolean))];
+      let externosMap: Record<string, string> = {};
+      if (externoIds.length > 0) {
+        const { data: extData } = await supabase.from("contatos_externos").select("id, nome").in("id", externoIds);
+        if (extData) externosMap = Object.fromEntries(extData.map((c: any) => [c.id, c.nome]));
+      }
+
       setProjetos(
         (data as any[]).map((p) => {
           const orc = Number(p.orcamento_previsto) || 0;
@@ -117,7 +125,9 @@ export default function RelatorioFinanceiro() {
             nome: p.nome,
             status: p.status,
             area_nome: p.areas_estrategicas?.nome || "Sem Área",
-            responsavel_nome: p.profiles?.nome || "–",
+            responsavel_nome: p.responsavel_externo_id
+              ? (externosMap[p.responsavel_externo_id] || "Externo")
+              : (p.profiles?.nome || "–"),
             orcamento: orc,
             gasto: gst,
             saldo: orc - gst,
