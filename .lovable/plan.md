@@ -1,57 +1,33 @@
 
 
-## Problema: Dados não aparecem após login
+## Plano: Selecionar projetos e mover para uma pasta/categoria
 
-### Causa Raiz
+### Resumo
+Adicionar modo de seleção na lista de projetos: o usuário marca checkboxes nos projetos desejados, depois escolhe a pasta de destino em uma barra de ações que aparece no topo. Ao confirmar, os projetos selecionados têm seu `categoria_id` atualizado em lote.
 
-O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
+### Implementação em `src/pages/Projetos.tsx`
 
-Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
+**Novos estados:**
+- `selectionMode: boolean` — ativa/desativa checkboxes nos cards
+- `selectedIds: Set<string>` — IDs dos projetos marcados
+- `moveTarget: string | null` — categoria destino escolhida no select
 
-O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
+**UI — Barra de seleção:**
+- Botão "Selecionar" ao lado dos botões existentes (Categorias, Importar, Novo Projeto)
+- Quando ativo, cada card de projeto ganha um checkbox à esquerda (sem navegar ao clicar no checkbox)
+- Barra flutuante no topo (ou inline) aparece com: contagem de selecionados, Select de categoria destino (incluindo "Sem Categoria"), botão "Mover", botão "Cancelar"
 
-### Correção
+**Ação de mover:**
+- `supabase.from("projetos").update({ categoria_id: target }).in("id", [...selectedIds])`
+- Toast de sucesso, limpa seleção, recarrega dados
 
-**Arquivo: `src/contexts/AuthContext.tsx`**
+**Detalhes:**
+- O checkbox no card precisa usar `e.preventDefault()` e `e.stopPropagation()` para não navegar ao projeto
+- Apenas coordenação vê o botão de selecionar (consistente com permissões existentes)
 
-Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
+### Arquivos
 
-```typescript
-const { data: { subscription } } = supabase.auth.onAuthStateChange(
-  (event, session) => {
-    setSession(session);
-    setUser(session?.user ?? null);
-
-    if (session?.user) {
-      const userId = session.user.id;
-      // Defer to next tick so Supabase client sets auth headers first
-      setTimeout(() => {
-        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
-          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-            initialSessionHandled = true;
-            setLoading(false);
-          }
-        });
-      }, 0);
-    } else {
-      setProfile(null);
-      setRole(null);
-      setRoleChecked(true);
-      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-        initialSessionHandled = true;
-        setLoading(false);
-      }
-    }
-  }
-);
-```
-
-Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
-
-### Por que isso resolve
-
-- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
-- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
-- `loading` permanece `true` até ambas completarem, evitando renders prematuros
-- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
+| Arquivo | Ação |
+|---------|------|
+| `src/pages/Projetos.tsx` | Adicionar modo seleção, barra de ações, lógica de mover em lote |
 
