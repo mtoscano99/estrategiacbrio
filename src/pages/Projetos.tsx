@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Plus, Calendar, DollarSign, FileStack, FolderOpen, ChevronDown, Trash2, Pencil, CheckSquare, ArrowRightLeft } from "lucide-react";
+import ImportarContatosDialog from "@/components/projetos/ImportarContatosDialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
