@@ -73,7 +73,8 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
 
     for (const file of files) {
       const uid = crypto.randomUUID();
-      const storagePath = `${projetoId}/${uid}-${file.name}`;
+      const safeName = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storagePath = `${projetoId}/${uid}-${safeName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("project-attachments")
