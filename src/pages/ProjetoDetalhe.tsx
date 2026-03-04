@@ -30,6 +30,9 @@ import SWOTMatrix from "@/components/projetos/SWOTMatrix";
 import AnexosProjeto from "@/components/projetos/AnexosProjeto";
 import { UserAvatar } from "@/components/UserAvatar";
 import NovoContatoExternoDialog from "@/components/projetos/NovoContatoExternoDialog";
+import { NovoKPIDialog } from "@/components/kpis/NovoKPIDialog";
+import { NovaMedicaoDialog } from "@/components/kpis/NovaMedicaoDialog";
+import { LineChart as ReLineChart, Line as ReLine, ResponsiveContainer as ReResponsive } from "recharts";
 import {
   DndContext,
   closestCenter,
@@ -292,6 +295,12 @@ export default function ProjetoDetalhe() {
   const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", responsavel_externo_id: "", valor_gasto: "" });
   const [showAddEtapa, setShowAddEtapa] = useState(false);
   const [expandedEtapa, setExpandedEtapa] = useState<string | null>(null);
+
+  // KPI state
+  const [projetoKpis, setProjetoKpis] = useState<any[]>([]);
+  const [kpiMedicoes, setKpiMedicoes] = useState<any[]>([]);
+  const [kpiSuggestions, setKpiSuggestions] = useState<{ nome: string; descricao: string; unidade: string; meta: number; periodicidade: string }[]>([]);
+  const [kpiSugLoading, setKpiSugLoading] = useState(false);
 
   // AI state
   const [showAnalise, setShowAnalise] = useState(false);
