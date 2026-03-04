@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Search, Plus, Calendar, DollarSign, FileStack, FolderOpen, ChevronDown, Trash2, Pencil } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Plus, Calendar, DollarSign, FileStack, FolderOpen, ChevronDown, Trash2, Pencil, CheckSquare, ArrowRightLeft } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
