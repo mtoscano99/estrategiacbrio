@@ -24,6 +24,7 @@ const schema = z.object({
   meta: z.coerce.number().min(0, "Meta deve ser positiva"),
   area_id: z.string().optional(),
   objetivo_id: z.string().optional(),
+  projeto_id: z.string().optional(),
   periodicidade: z.string().min(1),
 });
 
@@ -31,15 +32,14 @@ type FormData = z.infer<typeof schema>;
 
 interface Props {
   onCreated: (kpiId?: string) => void;
-  /** Pre-fill values for creating KPI from an alvo */
   prefill?: {
     nome?: string;
     meta?: number;
     unidade?: string;
     objetivo_id?: string;
     alvo_id?: string;
+    projeto_id?: string;
   };
-  /** Custom trigger button */
   trigger?: React.ReactNode;
 }
 
@@ -48,6 +48,7 @@ export function NovoKPIDialog({ onCreated, prefill, trigger }: Props) {
   const [open, setOpen] = useState(false);
   const [areas, setAreas] = useState<{ id: string; nome: string }[]>([]);
   const [objetivos, setObjetivos] = useState<{ id: string; titulo: string; area_id: string | null }[]>([]);
+  const [projetos, setProjetos] = useState<{ id: string; nome: string }[]>([]);
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -57,6 +58,7 @@ export function NovoKPIDialog({ onCreated, prefill, trigger }: Props) {
       meta: prefill?.meta || 0,
       nome: prefill?.nome || "",
       objetivo_id: prefill?.objetivo_id || undefined,
+      projeto_id: prefill?.projeto_id || undefined,
     },
   });
 
@@ -66,13 +68,14 @@ export function NovoKPIDialog({ onCreated, prefill, trigger }: Props) {
     if (open) {
       supabase.from("areas_estrategicas").select("id, nome").order("nome").then(({ data }) => data && setAreas(data));
       supabase.from("objetivos_estrategicos").select("id, titulo, area_id").order("titulo").then(({ data }) => data && setObjetivos(data));
+      supabase.from("projetos").select("id, nome").order("nome").then(({ data }) => data && setProjetos(data as any));
 
-      // Apply prefill values when dialog opens
       if (prefill) {
         if (prefill.nome) setValue("nome", prefill.nome);
         if (prefill.meta) setValue("meta", prefill.meta);
         if (prefill.unidade) setValue("unidade", prefill.unidade);
         if (prefill.objetivo_id) setValue("objetivo_id", prefill.objetivo_id);
+        if (prefill.projeto_id) setValue("projeto_id", prefill.projeto_id);
       }
     }
   }, [open, prefill, setValue]);
@@ -89,6 +92,7 @@ export function NovoKPIDialog({ onCreated, prefill, trigger }: Props) {
       meta: values.meta,
       area_id: values.area_id || null,
       objetivo_id: values.objetivo_id || null,
+      projeto_id: values.projeto_id || null,
       periodicidade: values.periodicidade,
       criado_por: user?.id || null,
     } as any).select("id").single();
@@ -98,7 +102,6 @@ export function NovoKPIDialog({ onCreated, prefill, trigger }: Props) {
       return;
     }
 
-    // Auto-link kpi_id on the alvo if prefill.alvo_id is provided
     if (data?.id && prefill?.alvo_id) {
       await supabase.from("alvos_pe").update({ kpi_id: data.id } as any).eq("id", prefill.alvo_id);
     }
@@ -148,6 +151,18 @@ export function NovoKPIDialog({ onCreated, prefill, trigger }: Props) {
                 <SelectItem value="trimestral">Trimestral</SelectItem>
                 <SelectItem value="semestral">Semestral</SelectItem>
                 <SelectItem value="anual">Anual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Projeto</Label>
+            <Select
+              value={watch("projeto_id") || undefined}
+              onValueChange={(v) => setValue("projeto_id", v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Selecione (opcional)" /></SelectTrigger>
+              <SelectContent>
+                {projetos.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

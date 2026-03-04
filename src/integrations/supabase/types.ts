@@ -124,6 +124,30 @@ export type Database = {
         }
         Relationships: []
       }
+      categorias_projeto: {
+        Row: {
+          cor: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
       comentarios: {
         Row: {
           autor_id: string
@@ -393,6 +417,7 @@ export type Database = {
           nome: string
           objetivo_id: string | null
           periodicidade: string
+          projeto_id: string | null
           unidade: string
           updated_at: string
         }
@@ -406,6 +431,7 @@ export type Database = {
           nome: string
           objetivo_id?: string | null
           periodicidade?: string
+          projeto_id?: string | null
           unidade?: string
           updated_at?: string
         }
@@ -419,6 +445,7 @@ export type Database = {
           nome?: string
           objetivo_id?: string | null
           periodicidade?: string
+          projeto_id?: string | null
           unidade?: string
           updated_at?: string
         }
@@ -442,6 +469,13 @@ export type Database = {
             columns: ["objetivo_id"]
             isOneToOne: false
             referencedRelation: "objetivos_estrategicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kpis_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
             referencedColumns: ["id"]
           },
         ]
@@ -570,6 +604,7 @@ export type Database = {
       projetos: {
         Row: {
           area_id: string | null
+          categoria_id: string | null
           centro_custo: string | null
           created_at: string
           data_fim: string | null
@@ -588,6 +623,7 @@ export type Database = {
         }
         Insert: {
           area_id?: string | null
+          categoria_id?: string | null
           centro_custo?: string | null
           created_at?: string
           data_fim?: string | null
@@ -606,6 +642,7 @@ export type Database = {
         }
         Update: {
           area_id?: string | null
+          categoria_id?: string | null
           centro_custo?: string | null
           created_at?: string
           data_fim?: string | null
@@ -628,6 +665,13 @@ export type Database = {
             columns: ["area_id"]
             isOneToOne: false
             referencedRelation: "areas_estrategicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projetos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_projeto"
             referencedColumns: ["id"]
           },
           {

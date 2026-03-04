@@ -27,6 +27,14 @@ interface ExtractedSwot {
   ameaca?: string[];
 }
 
+interface ExtractedKPI {
+  nome: string;
+  descricao?: string;
+  unidade?: string;
+  meta?: number;
+  periodicidade?: string;
+}
+
 interface ExtractedProject {
   nome: string;
   descricao?: string;
@@ -36,6 +44,7 @@ interface ExtractedProject {
   centro_custo?: string;
   etapas?: ExtractedEtapa[];
   swot?: ExtractedSwot;
+  kpis?: ExtractedKPI[];
   selected: boolean;
 }
 
@@ -43,6 +52,7 @@ export default function ImportarProjetosMassa() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [areas, setAreas] = useState<any[]>([]);
+  const [categorias, setCategorias] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -51,15 +61,18 @@ export default function ImportarProjetosMassa() {
 
   const [projects, setProjects] = useState<ExtractedProject[]>([]);
   const [globalAreaId, setGlobalAreaId] = useState("");
+  const [globalCategoriaId, setGlobalCategoriaId] = useState("");
   const [globalResponsavelId, setGlobalResponsavelId] = useState("");
 
   useEffect(() => {
     Promise.all([
       supabase.from("areas_estrategicas").select("id, nome"),
       supabase.from("profiles").select("id, nome, avatar_url"),
-    ]).then(([areasRes, profilesRes]) => {
+      supabase.from("categorias_projeto").select("id, nome, cor").order("nome"),
+    ]).then(([areasRes, profilesRes, catRes]) => {
       if (areasRes.data) setAreas(areasRes.data);
       if (profilesRes.data) setProfiles(profilesRes.data);
+      if (catRes.data) setCategorias(catRes.data as any);
     });
   }, []);
 
@@ -180,6 +193,7 @@ export default function ImportarProjetosMassa() {
           nome: proj.nome,
           descricao: proj.descricao || null,
           area_id: globalAreaId || null,
+          categoria_id: globalCategoriaId || null,
           responsavel_id: globalResponsavelId || user.id,
           data_inicio: proj.data_inicio || null,
           data_fim: proj.data_fim || null,
@@ -220,6 +234,20 @@ export default function ImportarProjetosMassa() {
           if (swotItems.length > 0) {
             await supabase.from("swot_items").insert(swotItems);
           }
+        }
+
+        // Insert KPIs
+        if (proj.kpis?.length) {
+          const kpisToInsert = proj.kpis.map((k) => ({
+            projeto_id: projetoId,
+            nome: k.nome,
+            descricao: k.descricao || null,
+            unidade: k.unidade || "%",
+            meta: k.meta || 0,
+            periodicidade: k.periodicidade || "mensal",
+            criado_por: user.id,
+          }));
+          await supabase.from("kpis").insert(kpisToInsert as any);
         }
 
         created++;
@@ -294,7 +322,25 @@ export default function ImportarProjetosMassa() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <p className="text-sm font-semibold mb-3">Aplicar a todos os projetos selecionados:</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {categorias.length > 0 && (
+                <div>
+                  <Label className="text-xs">Categoria / Pasta</Label>
+                  <Select value={globalCategoriaId} onValueChange={setGlobalCategoriaId}>
+                    <SelectTrigger><SelectValue placeholder="Selecionar categoria..." /></SelectTrigger>
+                    <SelectContent>
+                      {categorias.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.cor || "#6366f1" }} />
+                            {c.nome}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label className="text-xs">Área Estratégica</Label>
                 <Select value={globalAreaId} onValueChange={setGlobalAreaId}>
@@ -484,6 +530,44 @@ export default function ImportarProjetosMassa() {
                                   </div>
                                 );
                               })}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+
+                      {/* KPIs */}
+                      {proj.kpis && proj.kpis.length > 0 && (
+                        <AccordionItem value="kpis">
+                          <AccordionTrigger className="text-sm py-2">
+                            📊 KPIs ({proj.kpis.length})
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-2">
+                              {proj.kpis.map((kpi, ki) => (
+                                <div key={ki} className="rounded border bg-muted/30 p-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground w-4 text-center">{ki + 1}</span>
+                                    <div className="flex-1">
+                                      <p className="text-xs font-medium">{kpi.nome}</p>
+                                      {kpi.descricao && <p className="text-xs text-muted-foreground">{kpi.descricao}</p>}
+                                      <p className="text-xs text-muted-foreground">
+                                        Meta: {kpi.meta || 0} {kpi.unidade || "%"} · {kpi.periodicidade || "mensal"}
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive"
+                                      onClick={() => {
+                                        setProjects(prev => prev.map((p, i) => {
+                                          if (i !== idx) return p;
+                                          return { ...p, kpis: (p.kpis || []).filter((_, kIdx) => kIdx !== ki) };
+                                        }));
+                                      }}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </AccordionContent>
                         </AccordionItem>

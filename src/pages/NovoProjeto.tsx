@@ -32,6 +32,7 @@ export default function NovoProjeto() {
   const navigate = useNavigate();
   const { user, isCoordination } = useAuth();
   const [areas, setAreas] = useState<any[]>([]);
+  const [categorias, setCategorias] = useState<any[]>([]);
   const [objetivos, setObjetivos] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,6 +53,7 @@ export default function NovoProjeto() {
     area_id: "",
     responsavel_id: "",
     responsavel_externo_id: "",
+    categoria_id: "",
     data_inicio: "",
     data_fim: "",
     estimativa_prazo: "",
@@ -66,11 +68,13 @@ export default function NovoProjeto() {
       supabase.from("objetivos_estrategicos").select("id, titulo, ano"),
       supabase.from("profiles").select("id, nome, avatar_url"),
       supabase.from("contatos_externos").select("id, nome, email, cargo, organizacao"),
-    ]).then(([areasRes, objRes, profilesRes, contatosRes]) => {
+      supabase.from("categorias_projeto").select("id, nome, cor").order("nome"),
+    ]).then(([areasRes, objRes, profilesRes, contatosRes, catRes]) => {
       if (areasRes.data) setAreas(areasRes.data);
       if (objRes.data) setObjetivos(objRes.data);
       if (profilesRes.data) setProfiles(profilesRes.data);
       if (contatosRes.data) setContatosExternos(contatosRes.data);
+      if (catRes.data) setCategorias(catRes.data as any);
     });
   }, []);
 
@@ -179,6 +183,7 @@ export default function NovoProjeto() {
           nome: form.titulo,
           descricao: form.justificativa,
           area_id: form.area_id || null,
+          categoria_id: form.categoria_id || null,
           objetivo_id: form.objetivo_id || null,
           responsavel_id: form.responsavel_externo_id ? null : (form.responsavel_id || user.id),
           responsavel_externo_id: form.responsavel_externo_id || null,
@@ -476,7 +481,25 @@ export default function NovoProjeto() {
                   <Label htmlFor="justificativa">{isCoordination ? "Descrição" : "Justificativa"} *</Label>
                   <Textarea id="justificativa" value={form.justificativa} onChange={(e) => update("justificativa", e.target.value)} placeholder="Descreva o projeto e sua justificativa..." required rows={4} />
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {categorias.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Categoria / Pasta</Label>
+                      <Select value={form.categoria_id} onValueChange={(v) => update("categoria_id", v)}>
+                        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectContent>
+                          {categorias.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.cor || "#6366f1" }} />
+                                {c.nome}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>Área Estratégica</Label>
                     <Select value={form.area_id} onValueChange={(v) => update("area_id", v)}>

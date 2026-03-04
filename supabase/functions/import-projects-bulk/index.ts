@@ -153,11 +153,12 @@ serve(async (req) => {
             role: "system",
             content: `Você é um assistente que extrai dados de MÚLTIPLOS projetos a partir de documentos de planejamento.
 Analise o texto e identifique TODOS os projetos mencionados no documento.
-Cada projeto pode ter nome, descrição, datas, orçamento, etapas e análise SWOT.
+Cada projeto pode ter nome, descrição, datas, orçamento, etapas, análise SWOT e KPIs (indicadores-chave de desempenho).
 Se o documento contém apenas um projeto, retorne um array com um único elemento.
 Datas devem estar no formato YYYY-MM-DD.
 Para SWOT, classifique os itens corretamente em forças, fraquezas, oportunidades e ameaças.
-Para etapas, extraia fases, marcos ou atividades mencionadas para cada projeto.`,
+Para etapas, extraia fases, marcos ou atividades mencionadas para cada projeto.
+Para KPIs, extraia indicadores de desempenho, metas, métricas ou objetivos mensuráveis mencionados no documento.`,
           },
           {
             role: "user",
@@ -204,6 +205,21 @@ Para etapas, extraia fases, marcos ou atividades mencionadas para cada projeto.`
                             fraqueza: { type: "array", items: { type: "string" } },
                             oportunidade: { type: "array", items: { type: "string" } },
                             ameaca: { type: "array", items: { type: "string" } },
+                          },
+                        },
+                        kpis: {
+                          type: "array",
+                          description: "Indicadores-chave de desempenho extraídos do projeto",
+                          items: {
+                            type: "object",
+                            properties: {
+                              nome: { type: "string", description: "Nome do KPI" },
+                              descricao: { type: "string", description: "Descrição do que mede" },
+                              unidade: { type: "string", description: "Unidade de medida (%, unidades, R$)" },
+                              meta: { type: "number", description: "Meta numérica" },
+                              periodicidade: { type: "string", enum: ["mensal", "trimestral", "semestral", "anual"] },
+                            },
+                            required: ["nome"],
                           },
                         },
                       },
