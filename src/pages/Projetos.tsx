@@ -225,12 +225,44 @@ export default function Projetos() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Selection action bar */}
+      {selectionMode && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50 sticky top-0 z-10">
+          <span className="text-sm font-medium">{selectedIds.size} selecionado(s)</span>
+          <Select value={moveTarget} onValueChange={setMoveTarget}>
+            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Mover para..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Sem Categoria</SelectItem>
+              {categorias.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.cor || "#6366f1" }} />
+                    {c.nome}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" disabled={selectedIds.size === 0} onClick={moveProjects}>
+            <ArrowRightLeft className="h-4 w-4 mr-1" /> Mover
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => { setSelectionMode(false); setSelectedIds(new Set()); setMoveTarget("__none__"); }}>
+            Cancelar
+          </Button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold">Projetos</h1>
           <p className="text-muted-foreground mt-1">{filtered.length} projeto(s) encontrado(s)</p>
         </div>
         <div className="flex gap-2">
+          {isCoordination && !selectionMode && (
+            <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+              <CheckSquare className="h-4 w-4 mr-2" /> Selecionar
+            </Button>
+          )}
           {isCoordination && (
             <Dialog open={showCatDialog} onOpenChange={setShowCatDialog}>
               <DialogTrigger asChild>
@@ -260,6 +292,42 @@ export default function Projetos() {
                       {editingCat ? "Salvar" : "Criar"}
                     </Button>
                   </div>
+                  {editingCat && (
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingCat(null); setNewCatName(""); setNewCatCor("#6366f1"); }}>
+                      Cancelar edição
+                    </Button>
+                  )}
+                  <div className="space-y-2">
+                    {categorias.map((cat) => (
+                      <div key={cat.id} className="flex items-center gap-2 p-2 rounded border">
+                        <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: cat.cor || "#6366f1" }} />
+                        <span className="flex-1 text-sm font-medium">{cat.nome}</span>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingCat(cat); setNewCatName(cat.nome); setNewCatCor(cat.cor || "#6366f1"); }}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteCat(cat.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    {categorias.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nenhuma categoria criada</p>}
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+          <Button variant="outline" asChild>
+            <Link to="/importar-projetos">
+              <FileStack className="h-4 w-4 mr-2" /> Importar em Massa
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to="/novo-projeto">
+              <Plus className="h-4 w-4 mr-2" /> Novo Projeto
+            </Link>
+          </Button>
+        </div>
+      </div>
                   {editingCat && (
                     <Button variant="ghost" size="sm" onClick={() => { setEditingCat(null); setNewCatName(""); setNewCatCor("#6366f1"); }}>
                       Cancelar edição
