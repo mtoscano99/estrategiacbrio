@@ -236,6 +236,20 @@ export default function ImportarProjetosMassa() {
           }
         }
 
+        // Insert KPIs
+        if (proj.kpis?.length) {
+          const kpisToInsert = proj.kpis.map((k) => ({
+            projeto_id: projetoId,
+            nome: k.nome,
+            descricao: k.descricao || null,
+            unidade: k.unidade || "%",
+            meta: k.meta || 0,
+            periodicidade: k.periodicidade || "mensal",
+            criado_por: user.id,
+          }));
+          await supabase.from("kpis").insert(kpisToInsert as any);
+        }
+
         created++;
       }
 
