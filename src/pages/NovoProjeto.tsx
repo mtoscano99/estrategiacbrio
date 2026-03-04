@@ -32,6 +32,7 @@ export default function NovoProjeto() {
   const navigate = useNavigate();
   const { user, isCoordination } = useAuth();
   const [areas, setAreas] = useState<any[]>([]);
+  const [categorias, setCategorias] = useState<any[]>([]);
   const [objetivos, setObjetivos] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,6 +53,7 @@ export default function NovoProjeto() {
     area_id: "",
     responsavel_id: "",
     responsavel_externo_id: "",
+    categoria_id: "",
     data_inicio: "",
     data_fim: "",
     estimativa_prazo: "",
@@ -66,11 +68,13 @@ export default function NovoProjeto() {
       supabase.from("objetivos_estrategicos").select("id, titulo, ano"),
       supabase.from("profiles").select("id, nome, avatar_url"),
       supabase.from("contatos_externos").select("id, nome, email, cargo, organizacao"),
-    ]).then(([areasRes, objRes, profilesRes, contatosRes]) => {
+      supabase.from("categorias_projeto").select("id, nome, cor").order("nome"),
+    ]).then(([areasRes, objRes, profilesRes, contatosRes, catRes]) => {
       if (areasRes.data) setAreas(areasRes.data);
       if (objRes.data) setObjetivos(objRes.data);
       if (profilesRes.data) setProfiles(profilesRes.data);
       if (contatosRes.data) setContatosExternos(contatosRes.data);
+      if (catRes.data) setCategorias(catRes.data as any);
     });
   }, []);
 
@@ -179,6 +183,7 @@ export default function NovoProjeto() {
           nome: form.titulo,
           descricao: form.justificativa,
           area_id: form.area_id || null,
+          categoria_id: form.categoria_id || null,
           objetivo_id: form.objetivo_id || null,
           responsavel_id: form.responsavel_externo_id ? null : (form.responsavel_id || user.id),
           responsavel_externo_id: form.responsavel_externo_id || null,
