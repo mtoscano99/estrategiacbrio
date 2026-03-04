@@ -1,57 +1,33 @@
 
 
-## Problema: Dados não aparecem após login
+## Plano: Importar pessoas da planilha para contatos externos
 
-### Causa Raiz
+O sistema já possui a tabela `contatos_externos` (nome, email, cargo, organizacao, etc.) que é usada nos seletores de responsável em projetos e etapas. A solução é importar os dados da planilha nessa tabela.
 
-O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
+Como não consigo ler o arquivo XLSX diretamente, vou criar uma funcionalidade de importação no sistema.
 
-Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
+### Alterações
 
-O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
+| Arquivo | Ação |
+|---------|------|
+| `package.json` | Adicionar dependência `xlsx` (SheetJS) para parsing de planilhas no cliente |
+| `src/pages/Projetos.tsx` ou novo componente | Adicionar botão/dialog "Importar Pessoas" na área de gestão |
+| Novo: `src/components/projetos/ImportarContatosDialog.tsx` | Dialog com upload de XLSX/CSV, preview da tabela extraída (nome, email), e botão para importar em lote na tabela `contatos_externos` |
 
-### Correção
+### Fluxo
 
-**Arquivo: `src/contexts/AuthContext.tsx`**
+1. Usuário clica em "Importar Pessoas" (acessível da sidebar ou da página de projetos)
+2. Faz upload do arquivo `.xlsx`
+3. Sistema lê as colunas usando SheetJS, identifica colunas de nome e email
+4. Mostra preview em tabela com checkbox para selecionar quais importar
+5. Ao confirmar, insere em lote na tabela `contatos_externos` com `criado_por = auth.uid()`
+6. Pessoas ficam disponíveis nos seletores de responsável
 
-Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
+### Detalhes técnicos
 
-```typescript
-const { data: { subscription } } = supabase.auth.onAuthStateChange(
-  (event, session) => {
-    setSession(session);
-    setUser(session?.user ?? null);
-
-    if (session?.user) {
-      const userId = session.user.id;
-      // Defer to next tick so Supabase client sets auth headers first
-      setTimeout(() => {
-        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
-          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-            initialSessionHandled = true;
-            setLoading(false);
-          }
-        });
-      }, 0);
-    } else {
-      setProfile(null);
-      setRole(null);
-      setRoleChecked(true);
-      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-        initialSessionHandled = true;
-        setLoading(false);
-      }
-    }
-  }
-);
-```
-
-Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
-
-### Por que isso resolve
-
-- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
-- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
-- `loading` permanece `true` até ambas completarem, evitando renders prematuros
-- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
+- Parsing 100% client-side com `xlsx` (SheetJS), sem necessidade de edge function
+- Detecção automática de colunas por header (nome/name, email/e-mail)
+- Verificação de duplicatas por email antes de inserir
+- Inserção em batch via `supabase.from("contatos_externos").insert([...])` 
+- RLS já permite insert com `criado_por = auth.uid()`
 
