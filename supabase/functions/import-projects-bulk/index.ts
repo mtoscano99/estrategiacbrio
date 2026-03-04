@@ -206,6 +206,21 @@ Para etapas, extraia fases, marcos ou atividades mencionadas para cada projeto.`
                             ameaca: { type: "array", items: { type: "string" } },
                           },
                         },
+                        kpis: {
+                          type: "array",
+                          description: "Indicadores-chave de desempenho extraídos do projeto",
+                          items: {
+                            type: "object",
+                            properties: {
+                              nome: { type: "string", description: "Nome do KPI" },
+                              descricao: { type: "string", description: "Descrição do que mede" },
+                              unidade: { type: "string", description: "Unidade de medida (%, unidades, R$)" },
+                              meta: { type: "number", description: "Meta numérica" },
+                              periodicidade: { type: "string", enum: ["mensal", "trimestral", "semestral", "anual"] },
+                            },
+                            required: ["nome"],
+                          },
+                        },
                       },
                       required: ["nome"],
                     },

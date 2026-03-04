@@ -28,6 +28,8 @@ serve(async (req) => {
       return await handleEtapas(context, LOVABLE_API_KEY);
     } else if (mode === "docx") {
       return await handleDocx(context, LOVABLE_API_KEY);
+    } else if (mode === "extract-kpis") {
+      return await handleExtractKpis(context, LOVABLE_API_KEY);
     }
 
     return new Response(JSON.stringify({ error: "Invalid mode" }), {
@@ -353,5 +355,80 @@ async function handleGatewayError(response: Response) {
   console.error("Gateway error:", response.status, t);
   return new Response(JSON.stringify({ error: "Erro no serviço de IA" }), {
     status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function handleExtractKpis(ctx: any, apiKey: string) {
+  const existingKpis = ctx.existingKpis?.length
+    ? `\nKPIs já existentes: ${ctx.existingKpis.join("; ")}`
+    : "\nNenhum KPI cadastrado ainda.";
+
+  const systemPrompt = `Você é um consultor de gestão estratégica para uma organização brasileira.
+Analise o projeto e sugira entre 3 e 6 KPIs (indicadores-chave de desempenho) que sejam relevantes para medir o sucesso do projeto.
+Cada KPI deve ter: nome curto, descrição de uma frase, unidade de medida (%, unidades, R$, etc.), meta numérica realista e periodicidade (mensal, trimestral, semestral ou anual).
+Não repita KPIs já existentes. Seja específico e prático.`;
+
+  const response = await fetch(GATEWAY_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: buildProjectPrompt(ctx) + existingKpis },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "suggest_kpis",
+            description: "Retorna sugestões de KPIs para o projeto.",
+            parameters: {
+              type: "object",
+              properties: {
+                suggestions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      nome: { type: "string", description: "Nome curto do KPI" },
+                      descricao: { type: "string", description: "Descrição do que o KPI mede" },
+                      unidade: { type: "string", description: "Unidade de medida (%, unidades, R$)" },
+                      meta: { type: "number", description: "Meta numérica" },
+                      periodicidade: { type: "string", enum: ["mensal", "trimestral", "semestral", "anual"] },
+                    },
+                    required: ["nome", "descricao", "unidade", "meta", "periodicidade"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["suggestions"],
+              additionalProperties: false,
+            },
+          },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "suggest_kpis" } },
+    }),
+  });
+
+  if (!response.ok) {
+    return handleGatewayError(response);
+  }
+
+  const data = await response.json();
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (!toolCall) {
+    return new Response(JSON.stringify({ suggestions: [] }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const args = JSON.parse(toolCall.function.arguments);
+  return new Response(JSON.stringify(args), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
