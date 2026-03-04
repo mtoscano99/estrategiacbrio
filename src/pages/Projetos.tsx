@@ -146,48 +146,81 @@ export default function Projetos() {
     loadData();
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const moveProjects = async () => {
+    if (selectedIds.size === 0) return;
+    const target = moveTarget === "__none__" ? null : moveTarget;
+    const { error } = await supabase
+      .from("projetos")
+      .update({ categoria_id: target } as any)
+      .in("id", [...selectedIds]);
+    if (error) { toast.error("Erro ao mover projetos"); return; }
+    toast.success(`${selectedIds.size} projeto(s) movido(s)`);
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    setMoveTarget("__none__");
+    loadData();
+  };
+
   const renderProjectCard = (projeto: any) => (
-    <Link key={projeto.id} to={`/projetos/${projeto.id}`}>
-      <Card className="hover:shadow-md transition-shadow cursor-pointer">
-        <CardContent className="py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-semibold text-foreground truncate">{projeto.nome}</h3>
-                <Badge variant={STATUS_VARIANTS[projeto.status] || "secondary"}>
-                  {STATUS_LABELS[projeto.status] || projeto.status}
-                </Badge>
-              </div>
-              {projeto.descricao && (
-                <p className="text-sm text-muted-foreground line-clamp-1">{projeto.descricao}</p>
-              )}
-              <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                {projeto.areas_estrategicas?.nome && (
-                  <span className="bg-muted px-2 py-0.5 rounded">{projeto.areas_estrategicas.nome}</span>
-                )}
-                {projeto.profiles?.nome && <span>Resp: {projeto.profiles.nome}</span>}
-                {projeto.data_inicio && (
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {format(new Date(projeto.data_inicio), "dd/MM/yyyy")}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              {projeto.orcamento_previsto > 0 && (
-                <div className="flex items-center gap-1 text-sm">
-                  <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="font-medium">
-                    {Number(projeto.orcamento_previsto).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                  </span>
+    <div key={projeto.id} className="flex items-center gap-2">
+      {selectionMode && (
+        <Checkbox
+          checked={selectedIds.has(projeto.id)}
+          onCheckedChange={() => toggleSelect(projeto.id)}
+          className="shrink-0"
+        />
+      )}
+      <Link to={selectionMode ? "#" : `/projetos/${projeto.id}`} className="flex-1" onClick={(e) => { if (selectionMode) { e.preventDefault(); toggleSelect(projeto.id); } }}>
+        <Card className={`hover:shadow-md transition-shadow cursor-pointer ${selectedIds.has(projeto.id) ? "ring-2 ring-primary" : ""}`}>
+          <CardContent className="py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-semibold text-foreground truncate">{projeto.nome}</h3>
+                  <Badge variant={STATUS_VARIANTS[projeto.status] || "secondary"}>
+                    {STATUS_LABELS[projeto.status] || projeto.status}
+                  </Badge>
                 </div>
-              )}
+                {projeto.descricao && (
+                  <p className="text-sm text-muted-foreground line-clamp-1">{projeto.descricao}</p>
+                )}
+                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                  {projeto.areas_estrategicas?.nome && (
+                    <span className="bg-muted px-2 py-0.5 rounded">{projeto.areas_estrategicas.nome}</span>
+                  )}
+                  {projeto.profiles?.nome && <span>Resp: {projeto.profiles.nome}</span>}
+                  {projeto.data_inicio && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {format(new Date(projeto.data_inicio), "dd/MM/yyyy")}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                {projeto.orcamento_previsto > 0 && (
+                  <div className="flex items-center gap-1 text-sm">
+                    <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-medium">
+                      {Number(projeto.orcamento_previsto).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+          </CardContent>
+        </Card>
+      </Link>
+    </div>
   );
 
   return (
