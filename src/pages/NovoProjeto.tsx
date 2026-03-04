@@ -499,7 +499,7 @@ export default function NovoProjeto() {
                         </SelectContent>
                       </Select>
                     </div>
-                  )
+                  )}
                   <div className="space-y-2">
                     <Label>Área Estratégica</Label>
                     <Select value={form.area_id} onValueChange={(v) => update("area_id", v)}>
