@@ -63,71 +63,88 @@ export default function ImportarProjetosMassa() {
     });
   }, []);
 
-  const processFile = async (file: File) => {
+  const [processProgress, setProcessProgress] = useState({ current: 0, total: 0 });
+
+  const processFiles = async (files: FileList | File[]) => {
     const allowedTypes = [
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/pdf",
       "text/plain",
     ];
-    const isAllowed = allowedTypes.includes(file.type) || file.name.endsWith(".docx") || file.name.endsWith(".pdf") || file.name.endsWith(".txt");
+    const validFiles = Array.from(files).filter(file => {
+      const isAllowed = allowedTypes.includes(file.type) || file.name.endsWith(".docx") || file.name.endsWith(".pdf") || file.name.endsWith(".txt");
+      if (!isAllowed) return false;
+      if (file.size > 10 * 1024 * 1024) return false;
+      return true;
+    });
 
-    if (!isAllowed) {
-      toast.error("Formato não suportado. Envie um arquivo DOCX, PDF ou TXT.");
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Arquivo muito grande. Máximo 10MB.");
+    if (validFiles.length === 0) {
+      toast.error("Nenhum arquivo válido. Envie arquivos DOCX, PDF ou TXT (máx 10MB).");
       return;
     }
 
     setImporting(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+    setProcessProgress({ current: 0, total: validFiles.length });
+    const allProjects: ExtractedProject[] = [];
+    const errors: string[] = [];
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-projects-bulk`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: formData,
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
+      setProcessProgress({ current: i + 1, total: validFiles.length });
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-projects-bulk`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: "Erro" }));
+          errors.push(`${file.name}: ${err.error || "Erro ao processar"}`);
+          continue;
         }
-      );
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: "Erro ao processar documento" }));
-        throw new Error(err.error || "Erro ao processar documento");
+        const data = await response.json();
+        const extracted = (data.projetos || []).map((p: any) => ({
+          ...p,
+          selected: true,
+        }));
+        allProjects.push(...extracted);
+      } catch (error: any) {
+        errors.push(`${file.name}: ${error.message || "Erro"}`);
       }
-
-      const data = await response.json();
-      const extracted: ExtractedProject[] = (data.projetos || []).map((p: any) => ({
-        ...p,
-        selected: true,
-      }));
-
-      if (extracted.length === 0) {
-        toast.error("Nenhum projeto encontrado no documento.");
-        return;
-      }
-
-      setProjects(extracted);
-      toast.success(`${extracted.length} projeto(s) extraído(s) do documento. Revise e confirme.`);
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao importar documento");
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+
+    if (allProjects.length > 0) {
+      setProjects(prev => [...prev, ...allProjects]);
+      toast.success(`${allProjects.length} projeto(s) extraído(s) de ${validFiles.length} arquivo(s). Revise e confirme.`);
+    } else {
+      toast.error("Nenhum projeto encontrado nos arquivos enviados.");
+    }
+
+    if (errors.length > 0) {
+      toast.error(`Erros em ${errors.length} arquivo(s): ${errors[0]}`);
+    }
+
+    setImporting(false);
+    setProcessProgress({ current: 0, total: 0 });
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
+    const files = e.dataTransfer.files;
+    if (files?.length) processFiles(files);
   };
 
   const updateProject = (idx: number, field: string, value: any) => {
@@ -235,7 +252,7 @@ export default function ImportarProjetosMassa() {
               Importação em Massa
             </h1>
             <p className="text-muted-foreground mt-1">
-              Envie um documento contendo vários projetos para criar todos de uma vez
+              Envie um ou mais documentos para criar vários projetos de uma vez
             </p>
           </div>
           <div className="flex flex-col items-center gap-2">
@@ -243,8 +260,9 @@ export default function ImportarProjetosMassa() {
               ref={fileInputRef}
               type="file"
               accept=".docx,.pdf,.txt"
+              multiple
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }}
+              onChange={(e) => { if (e.target.files?.length) processFiles(e.target.files); }}
             />
             <Button
               type="button"
@@ -252,13 +270,13 @@ export default function ImportarProjetosMassa() {
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
             >
-              {importing ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Processando...</>
+            {importing ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Processando {processProgress.current}/{processProgress.total}...</>
               ) : (
                 <><Upload className="h-4 w-4" /> Enviar Documento</>
               )}
             </Button>
-            <p className="text-xs text-muted-foreground text-center">DOCX, PDF ou TXT · ou arraste aqui</p>
+            <p className="text-xs text-muted-foreground text-center">Múltiplos DOCX, PDF ou TXT · ou arraste aqui</p>
           </div>
         </div>
         {dragging && (
