@@ -15,7 +15,9 @@ interface KPIRow {
   meta: number;
   periodicidade: string;
   area_id: string | null;
+  projeto_id: string | null;
   areas_estrategicas: { nome: string } | null;
+  projetos: { nome: string } | null;
 }
 
 interface MedicaoRow {
@@ -31,10 +33,11 @@ export default function KPIs() {
   const [areas, setAreas] = useState<{ id: string; nome: string }[]>([]);
   const [filterArea, setFilterArea] = useState<string>("all");
   const [filterPeriodicidade, setFilterPeriodicidade] = useState<string>("all");
+  const [filterProjeto, setFilterProjeto] = useState<string>("all");
 
   const loadData = async () => {
     const [kpiRes, medRes, areaRes] = await Promise.all([
-      supabase.from("kpis").select("id, nome, descricao, unidade, meta, periodicidade, area_id, areas_estrategicas(nome)"),
+      supabase.from("kpis").select("id, nome, descricao, unidade, meta, periodicidade, area_id, projeto_id, areas_estrategicas(nome), projetos(nome)"),
       supabase.from("kpi_medicoes").select("kpi_id, valor, data_referencia").order("data_referencia", { ascending: true }),
       supabase.from("areas_estrategicas").select("id, nome").order("nome"),
     ]);
@@ -45,13 +48,22 @@ export default function KPIs() {
 
   useEffect(() => { loadData(); }, []);
 
+  const projetosUnicos = useMemo(() => {
+    const map = new Map<string, string>();
+    kpis.forEach((k) => {
+      if (k.projeto_id && k.projetos?.nome) map.set(k.projeto_id, k.projetos.nome);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [kpis]);
+
   const filtered = useMemo(() => {
     return kpis.filter((k) => {
       if (filterArea !== "all" && k.area_id !== filterArea) return false;
       if (filterPeriodicidade !== "all" && k.periodicidade !== filterPeriodicidade) return false;
+      if (filterProjeto !== "all" && k.projeto_id !== filterProjeto) return false;
       return true;
     });
-  }, [kpis, filterArea, filterPeriodicidade]);
+  }, [kpis, filterArea, filterPeriodicidade, filterProjeto]);
 
   const kpiCards = useMemo(() => {
     return filtered.map((k) => {
@@ -65,6 +77,7 @@ export default function KPIs() {
         meta: k.meta,
         periodicidade: k.periodicidade,
         area_nome: k.areas_estrategicas?.nome,
+        projeto_nome: k.projetos?.nome,
         medicoes: meds,
       };
     });
@@ -125,6 +138,15 @@ export default function KPIs() {
             {areas.map((a) => <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>)}
           </SelectContent>
         </Select>
+        {projetosUnicos.length > 0 && (
+          <Select value={filterProjeto} onValueChange={setFilterProjeto}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Projeto" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os projetos</SelectItem>
+              {projetosUnicos.map(([id, nome]) => <SelectItem key={id} value={id}>{nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={filterPeriodicidade} onValueChange={setFilterPeriodicidade}>
           <SelectTrigger className="w-48"><SelectValue placeholder="Periodicidade" /></SelectTrigger>
           <SelectContent>

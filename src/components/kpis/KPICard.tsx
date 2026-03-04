@@ -17,6 +17,7 @@ interface KPIData {
   meta: number;
   periodicidade: string;
   area_nome?: string;
+  projeto_nome?: string;
   medicoes: Medicao[];
 }
 
@@ -42,6 +43,9 @@ export function KPICard({ kpi, onMedicaoCreated }: Props) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h3 className="font-semibold text-sm truncate">{kpi.nome}</h3>
+            {kpi.projeto_nome && (
+              <p className="text-xs text-primary truncate">{kpi.projeto_nome}</p>
+            )}
             {kpi.area_nome && (
               <p className="text-xs text-muted-foreground truncate">{kpi.area_nome}</p>
             )}

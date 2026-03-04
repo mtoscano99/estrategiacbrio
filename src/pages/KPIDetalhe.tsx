@@ -9,7 +9,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { NovaMedicaoDialog } from "@/components/kpis/NovaMedicaoDialog";
 import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
@@ -23,6 +22,7 @@ interface KPI {
   periodicidade: string;
   areas_estrategicas: { nome: string } | null;
   objetivos_estrategicos: { titulo: string } | null;
+  projetos: { id: string; nome: string } | null;
 }
 
 interface Medicao {
@@ -44,7 +44,7 @@ export default function KPIDetalhe() {
   const loadData = async () => {
     if (!id) return;
     const [kpiRes, medRes] = await Promise.all([
-      supabase.from("kpis").select("id, nome, descricao, unidade, meta, periodicidade, areas_estrategicas(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
+      supabase.from("kpis").select("id, nome, descricao, unidade, meta, periodicidade, areas_estrategicas(nome), objetivos_estrategicos(titulo), projetos(id, nome)").eq("id", id).single(),
       supabase.from("kpi_medicoes").select("id, valor, data_referencia, observacao, created_at, profiles:registrado_por(nome)").eq("kpi_id", id).order("data_referencia", { ascending: true }),
     ]);
     if (kpiRes.data) setKpi(kpiRes.data as any);
@@ -79,6 +79,15 @@ export default function KPIDetalhe() {
       <div className="flex flex-wrap gap-2">
         <Badge variant="outline">Meta: {kpi.meta} {kpi.unidade}</Badge>
         <Badge variant="outline">{kpi.periodicidade}</Badge>
+        {kpi.projetos && (
+          <Badge
+            variant="secondary"
+            className="cursor-pointer hover:bg-secondary/80"
+            onClick={() => navigate(`/projetos/${kpi.projetos!.id}`)}
+          >
+            📁 {kpi.projetos.nome}
+          </Badge>
+        )}
         {kpi.areas_estrategicas && <Badge variant="secondary">{kpi.areas_estrategicas.nome}</Badge>}
         {kpi.objetivos_estrategicos && <Badge variant="secondary">{kpi.objetivos_estrategicos.titulo}</Badge>}
         {lastValue !== null && (
