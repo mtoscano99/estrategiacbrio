@@ -322,7 +322,25 @@ export default function ImportarProjetosMassa() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <p className="text-sm font-semibold mb-3">Aplicar a todos os projetos selecionados:</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {categorias.length > 0 && (
+                <div>
+                  <Label className="text-xs">Categoria / Pasta</Label>
+                  <Select value={globalCategoriaId} onValueChange={setGlobalCategoriaId}>
+                    <SelectTrigger><SelectValue placeholder="Selecionar categoria..." /></SelectTrigger>
+                    <SelectContent>
+                      {categorias.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.cor || "#6366f1" }} />
+                            {c.nome}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label className="text-xs">Área Estratégica</Label>
                 <Select value={globalAreaId} onValueChange={setGlobalAreaId}>
