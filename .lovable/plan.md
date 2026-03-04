@@ -1,57 +1,32 @@
 
 
-## Problema: Dados não aparecem após login
+## Plano: Drag and Drop para Anexos de Projetos
 
-### Causa Raiz
+### Resumo
+Adicionar uma zona de drag and drop no componente `AnexosProjeto.tsx`. Quando o usuário arrastar arquivos sobre a área de anexos, uma zona visual destacada aparece. Ao soltar, os arquivos são enviados usando a mesma lógica de upload existente.
 
-O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
+### Implementação em `src/components/projetos/AnexosProjeto.tsx`
 
-Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
+**Novos estados:**
+- `isDragging: boolean` — controla o destaque visual da drop zone
 
-O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
+**Event handlers nativos (sem biblioteca extra):**
+- `onDragOver`, `onDragEnter` → `setIsDragging(true)` + `e.preventDefault()`
+- `onDragLeave` → `setIsDragging(false)`
+- `onDrop` → extrai `e.dataTransfer.files`, chama a lógica de upload existente
 
-### Correção
+**Refatoração:**
+- Extrair lógica de upload de `handleUpload` para uma função `uploadFiles(files: File[])` reutilizável
+- `handleUpload` (input change) e `handleDrop` ambos chamam `uploadFiles`
 
-**Arquivo: `src/contexts/AuthContext.tsx`**
+**UI da drop zone:**
+- Quando `anexos.length === 0` e não está arrastando: mensagem "Arraste arquivos aqui ou clique em Adicionar Anexo"
+- Quando `isDragging`: borda tracejada azul com ícone de upload e texto "Solte os arquivos aqui"
+- A zona de drop cobre todo o `CardContent`
 
-Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
+### Arquivo
 
-```typescript
-const { data: { subscription } } = supabase.auth.onAuthStateChange(
-  (event, session) => {
-    setSession(session);
-    setUser(session?.user ?? null);
-
-    if (session?.user) {
-      const userId = session.user.id;
-      // Defer to next tick so Supabase client sets auth headers first
-      setTimeout(() => {
-        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
-          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-            initialSessionHandled = true;
-            setLoading(false);
-          }
-        });
-      }, 0);
-    } else {
-      setProfile(null);
-      setRole(null);
-      setRoleChecked(true);
-      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-        initialSessionHandled = true;
-        setLoading(false);
-      }
-    }
-  }
-);
-```
-
-Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
-
-### Por que isso resolve
-
-- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
-- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
-- `loading` permanece `true` até ambas completarem, evitando renders prematuros
-- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
+| Arquivo | Ação |
+|---------|------|
+| `src/components/projetos/AnexosProjeto.tsx` | Adicionar drag and drop com estados e handlers nativos do browser |
 
