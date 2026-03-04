@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Plus, Calendar, DollarSign, FileStack, FolderOpen, ChevronDown, Trash2, Pencil, CheckSquare, ArrowRightLeft } from "lucide-react";
+import ImportarContatosDialog from "@/components/projetos/ImportarContatosDialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -325,6 +326,7 @@ export default function Projetos() {
               </DialogContent>
             </Dialog>
           )}
+          {isCoordination && <ImportarContatosDialog />}
           <Button variant="outline" asChild>
             <Link to="/importar-projetos">
               <FileStack className="h-4 w-4 mr-2" /> Importar em Massa
