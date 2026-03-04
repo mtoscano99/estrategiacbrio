@@ -283,7 +283,7 @@ export default function ProjetoDetalhe() {
   const navigate = useNavigate();
   const location = useLocation();
   const etapaRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const { user, isCoordination } = useAuth();
+  const { user, isCoordination, role, profile } = useAuth();
   const [projeto, setProjeto] = useState<any>(null);
   const [etapas, setEtapas] = useState<any[]>([]);
   const [comentarios, setComentarios] = useState<any[]>([]);
