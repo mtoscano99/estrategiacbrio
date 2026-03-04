@@ -55,6 +55,11 @@ export default function Projetos() {
   const [newCatCor, setNewCatCor] = useState("#6366f1");
   const [editingCat, setEditingCat] = useState<Categoria | null>(null);
 
+  // Selection mode
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [moveTarget, setMoveTarget] = useState<string>("__none__");
+
   // Collapsible categories
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
 
