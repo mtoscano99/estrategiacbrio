@@ -4,7 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Paperclip, Upload, Trash2, FileText, Image, FileSpreadsheet, File, Loader2 } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Paperclip, Upload, Trash2, FileText, Image, FileSpreadsheet, File, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -36,6 +37,11 @@ function FileIcon({ mime }: { mime: string | null }) {
   return <File className="h-4 w-4 text-muted-foreground" />;
 }
 
+function getPublicUrl(storagePath: string): string {
+  const { data } = supabase.storage.from("project-attachments").getPublicUrl(storagePath);
+  return data.publicUrl;
+}
+
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
 export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
@@ -43,6 +49,7 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
 
@@ -51,12 +58,17 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
   }, [projetoId]);
 
   const loadAnexos = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("anexos_projeto")
       .select("*, profiles!anexos_projeto_enviado_por_fkey(nome)")
       .eq("projeto_id", projetoId)
       .order("created_at", { ascending: false }) as any;
-    if (data) setAnexos(data);
+    if (error) {
+      console.error("Erro ao carregar anexos:", error);
+      toast.error("Erro ao carregar anexos do projeto");
+      return;
+    }
+    setAnexos(data || []);
   };
 
   const uploadFiles = useCallback(async (files: File[]) => {
@@ -148,10 +160,7 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
   };
 
   const handleDownload = (anexo: Anexo) => {
-    const { data } = supabase.storage
-      .from("project-attachments")
-      .getPublicUrl(anexo.storage_path);
-    window.open(data.publicUrl, "_blank");
+    window.open(getPublicUrl(anexo.storage_path), "_blank");
   };
 
   const handleDelete = async (anexo: Anexo) => {
@@ -180,103 +189,135 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
 
   const canDelete = (anexo: Anexo) => isCoordination || anexo.enviado_por === user?.id;
 
-  return (
-    <Card
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      className={isDragging ? "ring-2 ring-primary border-primary" : ""}
-    >
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Paperclip className="h-5 w-5" /> Anexos e Documentos
-        </CardTitle>
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleUpload}
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-          >
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
-            Adicionar Anexo
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="relative">
-        {isDragging && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-md border-2 border-dashed border-primary bg-primary/5 backdrop-blur-sm">
-            <Upload className="h-10 w-10 text-primary mb-2" />
-            <p className="text-sm font-medium text-primary">Solte os arquivos aqui</p>
-          </div>
-        )}
+  const isImage = (mime: string | null) => !!mime && mime.startsWith("image/");
 
-        {anexos.length === 0 && !isDragging ? (
-          <div
-            className="flex flex-col items-center justify-center py-8 text-muted-foreground cursor-pointer border-2 border-dashed border-muted rounded-md hover:border-primary/40 transition-colors"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="h-8 w-8 mb-2 opacity-50" />
-            <p className="text-sm">Arraste arquivos aqui ou clique para adicionar</p>
+  return (
+    <>
+      <Card
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        className={isDragging ? "ring-2 ring-primary border-primary" : ""}
+      >
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Paperclip className="h-5 w-5" /> Anexos e Documentos
+          </CardTitle>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleUpload}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
+              Adicionar Anexo
+            </Button>
           </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Arquivo</TableHead>
-                <TableHead className="hidden sm:table-cell">Tamanho</TableHead>
-                <TableHead className="hidden md:table-cell">Enviado por</TableHead>
-                <TableHead className="hidden md:table-cell">Data</TableHead>
-                <TableHead className="w-10"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {anexos.map((anexo) => (
-                <TableRow key={anexo.id}>
-                  <TableCell>
-                    <button
-                      onClick={() => handleDownload(anexo)}
-                      className="flex items-center gap-2 text-sm hover:text-primary transition-colors text-left"
-                    >
-                      <FileIcon mime={anexo.tipo_mime} />
-                      <span className="truncate max-w-[200px]">{anexo.nome_arquivo}</span>
-                    </button>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
-                    {formatFileSize(anexo.tamanho)}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground text-xs">
-                    {(anexo as any).profiles?.nome || "—"}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground text-xs">
-                    {format(new Date(anexo.created_at), "dd/MM/yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    {canDelete(anexo) && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleDelete(anexo)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </TableCell>
+        </CardHeader>
+        <CardContent className="relative">
+          {isDragging && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-md border-2 border-dashed border-primary bg-primary/5 backdrop-blur-sm">
+              <Upload className="h-10 w-10 text-primary mb-2" />
+              <p className="text-sm font-medium text-primary">Solte os arquivos aqui</p>
+            </div>
+          )}
+
+          {anexos.length === 0 && !isDragging ? (
+            <div
+              className="flex flex-col items-center justify-center py-8 text-muted-foreground cursor-pointer border-2 border-dashed border-muted rounded-md hover:border-primary/40 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-8 w-8 mb-2 opacity-50" />
+              <p className="text-sm">Arraste arquivos aqui ou clique para adicionar</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Arquivo</TableHead>
+                  <TableHead className="hidden sm:table-cell">Tamanho</TableHead>
+                  <TableHead className="hidden md:table-cell">Enviado por</TableHead>
+                  <TableHead className="hidden md:table-cell">Data</TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {anexos.map((anexo) => (
+                  <TableRow key={anexo.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        {isImage(anexo.tipo_mime) ? (
+                          <button
+                            onClick={() => setPreviewUrl(getPublicUrl(anexo.storage_path))}
+                            className="flex-shrink-0 rounded overflow-hidden border border-border hover:ring-2 hover:ring-primary transition-all"
+                          >
+                            <img
+                              src={getPublicUrl(anexo.storage_path)}
+                              alt={anexo.nome_arquivo}
+                              className="h-10 w-10 object-cover"
+                              loading="lazy"
+                            />
+                          </button>
+                        ) : (
+                          <FileIcon mime={anexo.tipo_mime} />
+                        )}
+                        <button
+                          onClick={() => handleDownload(anexo)}
+                          className="text-sm hover:text-primary transition-colors text-left truncate max-w-[200px]"
+                        >
+                          {anexo.nome_arquivo}
+                        </button>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
+                      {formatFileSize(anexo.tamanho)}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground text-xs">
+                      {(anexo as any).profiles?.nome || "—"}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground text-xs">
+                      {format(new Date(anexo.created_at), "dd/MM/yyyy")}
+                    </TableCell>
+                    <TableCell>
+                      {canDelete(anexo) && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDelete(anexo)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
+        <DialogContent className="max-w-3xl p-2">
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt="Preview"
+              className="w-full h-auto max-h-[80vh] object-contain rounded"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

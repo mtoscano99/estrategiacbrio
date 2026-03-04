@@ -1,24 +1,57 @@
 
 
-## Plano: Preview de imagens nos anexos + correção de exibição
+## Problema: Dados não aparecem após login
 
-### Problema 1: Arquivo não aparece após upload
-O `loadAnexos` usa `as any` e ignora erros silenciosamente. Se o SELECT falhar por RLS ou outro motivo, `data` é `null` e nada muda. Vou adicionar tratamento de erro com log/toast para não engolir falhas.
+### Causa Raiz
 
-### Problema 2: Preview de imagens
-Quando o anexo for uma imagem (`tipo_mime` começa com `image/`), mostrar uma miniatura (thumbnail) na tabela ao lado do nome do arquivo, usando a URL pública do storage.
+O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
 
-### Alterações
+Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
 
-| Arquivo | Ação |
-|---------|------|
-| `src/components/projetos/AnexosProjeto.tsx` | 1. Adicionar thumbnail para anexos de imagem na coluna "Arquivo" (usar `getPublicUrl` + tag `<img>` com tamanho fixo ~40x40px, object-cover, rounded) |
-| `src/components/projetos/AnexosProjeto.tsx` | 2. Adicionar tratamento de erro no `loadAnexos` para exibir toast em caso de falha no SELECT |
-| `src/components/projetos/AnexosProjeto.tsx` | 3. Adicionar modal/dialog de preview em tamanho maior ao clicar na miniatura da imagem |
+O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
 
-### Detalhes técnicos
+### Correção
 
-- **Thumbnail**: Para anexos com `tipo_mime?.startsWith("image/")`, gerar URL via `supabase.storage.from("project-attachments").getPublicUrl(anexo.storage_path)` e renderizar `<img>` de 40x40px com `object-cover` e `rounded`
-- **Preview modal**: Dialog simples com a imagem em tamanho grande ao clicar no thumbnail
-- **Error handling no loadAnexos**: Capturar `error` do retorno do Supabase e exibir `toast.error` quando não for null
+**Arquivo: `src/contexts/AuthContext.tsx`**
+
+Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
+
+```typescript
+const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  (event, session) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+
+    if (session?.user) {
+      const userId = session.user.id;
+      // Defer to next tick so Supabase client sets auth headers first
+      setTimeout(() => {
+        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
+          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+            initialSessionHandled = true;
+            setLoading(false);
+          }
+        });
+      }, 0);
+    } else {
+      setProfile(null);
+      setRole(null);
+      setRoleChecked(true);
+      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
+        initialSessionHandled = true;
+        setLoading(false);
+      }
+    }
+  }
+);
+```
+
+Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
+
+### Por que isso resolve
+
+- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
+- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
+- `loading` permanece `true` até ambas completarem, evitando renders prematuros
+- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
 
