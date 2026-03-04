@@ -193,6 +193,7 @@ export default function ImportarProjetosMassa() {
           nome: proj.nome,
           descricao: proj.descricao || null,
           area_id: globalAreaId || null,
+          categoria_id: globalCategoriaId || null,
           responsavel_id: globalResponsavelId || user.id,
           data_inicio: proj.data_inicio || null,
           data_fim: proj.data_fim || null,
