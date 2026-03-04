@@ -936,6 +936,95 @@ export default function ProjetoDetalhe() {
         </CardContent>
       </Card>
 
+      {/* KPIs do Projeto */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">Indicadores (KPIs)</CardTitle>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="gap-1" onClick={suggestKpis} disabled={kpiSugLoading}>
+              {kpiSugLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Extrair KPIs com IA
+            </Button>
+            <NovoKPIDialog
+              onCreated={loadData}
+              prefill={{ projeto_id: id }}
+              trigger={<Button size="sm" variant="outline"><Plus className="h-4 w-4 mr-1" /> KPI</Button>}
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* AI KPI Suggestions */}
+          {kpiSuggestions.length > 0 && (
+            <div className="space-y-2 p-3 rounded-lg border border-dashed border-primary/30 bg-primary/5">
+              <p className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
+                <Sparkles className="h-3 w-3" /> Sugestões de KPIs da IA
+              </p>
+              {kpiSuggestions.map((s, i) => (
+                <div key={i} className="flex items-center gap-2 p-2 rounded bg-background/60">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{s.nome}</p>
+                    <p className="text-xs text-muted-foreground">{s.descricao} · Meta: {s.meta} {s.unidade} · {s.periodicidade}</p>
+                  </div>
+                  <button onClick={() => acceptKpiSuggestion(i)} className="text-primary hover:text-primary/80 shrink-0">
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => dismissKpiSuggestion(i)} className="text-muted-foreground hover:text-destructive shrink-0">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {projetoKpis.length === 0 && kpiSuggestions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhum KPI vinculado a este projeto</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {projetoKpis.map((kpi: any) => {
+                const meds = kpiMedicoes.filter((m: any) => m.kpi_id === kpi.id).sort((a: any, b: any) => a.data_referencia.localeCompare(b.data_referencia));
+                const lastVal = meds.length > 0 ? meds[meds.length - 1].valor : null;
+                const progress = kpi.meta > 0 && lastVal !== null ? Math.min((lastVal / kpi.meta) * 100, 100) : 0;
+                const sparkData = meds.slice(-6).map((m: any) => ({ v: m.valor }));
+
+                return (
+                  <div
+                    key={kpi.id}
+                    className="rounded-lg border bg-card p-4 space-y-2 cursor-pointer hover:shadow-sm transition-shadow"
+                    onClick={() => navigate(`/kpis/${kpi.id}`)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-semibold">{kpi.nome}</p>
+                        <p className="text-xs text-muted-foreground">Meta: {kpi.meta} {kpi.unidade}</p>
+                      </div>
+                      <Badge variant={lastVal === null ? "secondary" : lastVal >= kpi.meta ? "default" : "destructive"} className="text-xs">
+                        {lastVal === null ? "Sem dados" : lastVal >= kpi.meta ? "No alvo" : "Abaixo"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <p className="text-xl font-bold">{lastVal !== null ? lastVal : "—"} <span className="text-xs font-normal text-muted-foreground">{kpi.unidade}</span></p>
+                      {sparkData.length > 1 && (
+                        <div className="w-16 h-6">
+                          <ReResponsive width="100%" height="100%">
+                            <ReLineChart data={sparkData}>
+                              <ReLine type="monotone" dataKey="v" stroke="hsl(var(--primary))" strokeWidth={1.5} dot={false} />
+                            </ReLineChart>
+                          </ReResponsive>
+                        </div>
+                      )}
+                    </div>
+                    <Progress value={progress} className="h-1.5" />
+                    <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                      <NovaMedicaoDialog kpiId={kpi.id} kpiNome={kpi.nome} unidade={kpi.unidade} onCreated={loadData} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Comentários */}
       <Card>
         <CardHeader><CardTitle className="text-lg">Comentários</CardTitle></CardHeader>
