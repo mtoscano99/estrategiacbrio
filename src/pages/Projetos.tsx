@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Search, Plus, Calendar, DollarSign, FileStack, FolderOpen, ChevronDown, Trash2, Pencil } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Plus, Calendar, DollarSign, FileStack, FolderOpen, ChevronDown, Trash2, Pencil, CheckSquare, ArrowRightLeft } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -53,6 +54,11 @@ export default function Projetos() {
   const [newCatName, setNewCatName] = useState("");
   const [newCatCor, setNewCatCor] = useState("#6366f1");
   const [editingCat, setEditingCat] = useState<Categoria | null>(null);
+
+  // Selection mode
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [moveTarget, setMoveTarget] = useState<string>("__none__");
 
   // Collapsible categories
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
@@ -140,58 +146,123 @@ export default function Projetos() {
     loadData();
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const moveProjects = async () => {
+    if (selectedIds.size === 0) return;
+    const target = moveTarget === "__none__" ? null : moveTarget;
+    const { error } = await supabase
+      .from("projetos")
+      .update({ categoria_id: target } as any)
+      .in("id", [...selectedIds]);
+    if (error) { toast.error("Erro ao mover projetos"); return; }
+    toast.success(`${selectedIds.size} projeto(s) movido(s)`);
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    setMoveTarget("__none__");
+    loadData();
+  };
+
   const renderProjectCard = (projeto: any) => (
-    <Link key={projeto.id} to={`/projetos/${projeto.id}`}>
-      <Card className="hover:shadow-md transition-shadow cursor-pointer">
-        <CardContent className="py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-semibold text-foreground truncate">{projeto.nome}</h3>
-                <Badge variant={STATUS_VARIANTS[projeto.status] || "secondary"}>
-                  {STATUS_LABELS[projeto.status] || projeto.status}
-                </Badge>
-              </div>
-              {projeto.descricao && (
-                <p className="text-sm text-muted-foreground line-clamp-1">{projeto.descricao}</p>
-              )}
-              <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                {projeto.areas_estrategicas?.nome && (
-                  <span className="bg-muted px-2 py-0.5 rounded">{projeto.areas_estrategicas.nome}</span>
-                )}
-                {projeto.profiles?.nome && <span>Resp: {projeto.profiles.nome}</span>}
-                {projeto.data_inicio && (
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {format(new Date(projeto.data_inicio), "dd/MM/yyyy")}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              {projeto.orcamento_previsto > 0 && (
-                <div className="flex items-center gap-1 text-sm">
-                  <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="font-medium">
-                    {Number(projeto.orcamento_previsto).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                  </span>
+    <div key={projeto.id} className="flex items-center gap-2">
+      {selectionMode && (
+        <Checkbox
+          checked={selectedIds.has(projeto.id)}
+          onCheckedChange={() => toggleSelect(projeto.id)}
+          className="shrink-0"
+        />
+      )}
+      <Link to={selectionMode ? "#" : `/projetos/${projeto.id}`} className="flex-1" onClick={(e) => { if (selectionMode) { e.preventDefault(); toggleSelect(projeto.id); } }}>
+        <Card className={`hover:shadow-md transition-shadow cursor-pointer ${selectedIds.has(projeto.id) ? "ring-2 ring-primary" : ""}`}>
+          <CardContent className="py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-semibold text-foreground truncate">{projeto.nome}</h3>
+                  <Badge variant={STATUS_VARIANTS[projeto.status] || "secondary"}>
+                    {STATUS_LABELS[projeto.status] || projeto.status}
+                  </Badge>
                 </div>
-              )}
+                {projeto.descricao && (
+                  <p className="text-sm text-muted-foreground line-clamp-1">{projeto.descricao}</p>
+                )}
+                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                  {projeto.areas_estrategicas?.nome && (
+                    <span className="bg-muted px-2 py-0.5 rounded">{projeto.areas_estrategicas.nome}</span>
+                  )}
+                  {projeto.profiles?.nome && <span>Resp: {projeto.profiles.nome}</span>}
+                  {projeto.data_inicio && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {format(new Date(projeto.data_inicio), "dd/MM/yyyy")}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                {projeto.orcamento_previsto > 0 && (
+                  <div className="flex items-center gap-1 text-sm">
+                    <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-medium">
+                      {Number(projeto.orcamento_previsto).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+          </CardContent>
+        </Card>
+      </Link>
+    </div>
   );
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Selection action bar */}
+      {selectionMode && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50 sticky top-0 z-10">
+          <span className="text-sm font-medium">{selectedIds.size} selecionado(s)</span>
+          <Select value={moveTarget} onValueChange={setMoveTarget}>
+            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Mover para..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Sem Categoria</SelectItem>
+              {categorias.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.cor || "#6366f1" }} />
+                    {c.nome}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" disabled={selectedIds.size === 0} onClick={moveProjects}>
+            <ArrowRightLeft className="h-4 w-4 mr-1" /> Mover
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => { setSelectionMode(false); setSelectedIds(new Set()); setMoveTarget("__none__"); }}>
+            Cancelar
+          </Button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold">Projetos</h1>
           <p className="text-muted-foreground mt-1">{filtered.length} projeto(s) encontrado(s)</p>
         </div>
         <div className="flex gap-2">
+          {isCoordination && !selectionMode && (
+            <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+              <CheckSquare className="h-4 w-4 mr-2" /> Selecionar
+            </Button>
+          )}
           {isCoordination && (
             <Dialog open={showCatDialog} onOpenChange={setShowCatDialog}>
               <DialogTrigger asChild>
