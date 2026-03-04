@@ -27,6 +27,14 @@ interface ExtractedSwot {
   ameaca?: string[];
 }
 
+interface ExtractedKPI {
+  nome: string;
+  descricao?: string;
+  unidade?: string;
+  meta?: number;
+  periodicidade?: string;
+}
+
 interface ExtractedProject {
   nome: string;
   descricao?: string;
@@ -36,6 +44,7 @@ interface ExtractedProject {
   centro_custo?: string;
   etapas?: ExtractedEtapa[];
   swot?: ExtractedSwot;
+  kpis?: ExtractedKPI[];
   selected: boolean;
 }
 
@@ -43,6 +52,7 @@ export default function ImportarProjetosMassa() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [areas, setAreas] = useState<any[]>([]);
+  const [categorias, setCategorias] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -51,15 +61,18 @@ export default function ImportarProjetosMassa() {
 
   const [projects, setProjects] = useState<ExtractedProject[]>([]);
   const [globalAreaId, setGlobalAreaId] = useState("");
+  const [globalCategoriaId, setGlobalCategoriaId] = useState("");
   const [globalResponsavelId, setGlobalResponsavelId] = useState("");
 
   useEffect(() => {
     Promise.all([
       supabase.from("areas_estrategicas").select("id, nome"),
       supabase.from("profiles").select("id, nome, avatar_url"),
-    ]).then(([areasRes, profilesRes]) => {
+      supabase.from("categorias_projeto").select("id, nome, cor").order("nome"),
+    ]).then(([areasRes, profilesRes, catRes]) => {
       if (areasRes.data) setAreas(areasRes.data);
       if (profilesRes.data) setProfiles(profilesRes.data);
+      if (catRes.data) setCategorias(catRes.data as any);
     });
   }, []);
 
