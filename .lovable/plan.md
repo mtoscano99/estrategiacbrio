@@ -1,57 +1,80 @@
 
 
-## Problema: Dados não aparecem após login
+## Plano: Pastas de Projetos, KPIs vinculados a Projetos e Extração automática de KPIs
 
-### Causa Raiz
+### 3 funcionalidades solicitadas
 
-O callback `onAuthStateChange` do Supabase define a sessão internamente de forma **síncrona após o callback retornar**. As chamadas `fetchProfile` e `fetchRole` dentro do `Promise.all` executam **durante** o callback — antes do cliente ter configurado o token JWT nos headers HTTP. Resultado: as queries ao banco rodam como usuário anônimo, o RLS bloqueia tudo, e os dados retornam vazios.
+1. **Pastas/Categorias de projetos** — Organizar projetos em macropastas (ex: "Ministeriais", "Administrativos")
+2. **KPIs vinculados a projetos** — Ao criar KPI, escolher o projeto; ao entrar no projeto, ver seus KPIs com input de medições
+3. **Extração automática de KPIs dos documentos** — Botão para extrair KPIs dos projetos importados via documento
 
-Isso explica por que o login funciona (a sessão existe) mas os dados não aparecem (as queries de profile/role falham silenciosamente).
+---
 
-O Dashboard depois carrega com `role = null` (porque `fetchRole` retornou vazio) e faz suas próprias queries que também podem falhar por timing.
+### 1. Pastas de projetos (nova tabela `categorias_projeto`)
 
-### Correção
+**Migration SQL:**
+- Criar tabela `categorias_projeto` (id, nome, descricao, cor, created_at) com RLS
+- Adicionar coluna `categoria_id` na tabela `projetos` referenciando `categorias_projeto`
 
-**Arquivo: `src/contexts/AuthContext.tsx`**
+**UI — `Projetos.tsx`:**
+- Adicionar filtro por categoria no topo (junto aos filtros existentes)
+- Agrupar projetos por categoria visualmente (seções colapsáveis com nome da pasta)
+- Botão "Gerenciar Categorias" abre dialog para criar/editar/excluir categorias
+- No card de projeto e em NovoProjeto, select para escolher categoria
 
-Usar `setTimeout(..., 0)` para deferir as chamadas de DB para o próximo tick do event loop (quando o cliente já terá configurado o token), mas manter `loading = true` até ambas completarem:
+**UI — `NovoProjeto.tsx` e `ImportarProjetosMassa.tsx`:**
+- Adicionar select de categoria no formulário
 
-```typescript
-const { data: { subscription } } = supabase.auth.onAuthStateChange(
-  (event, session) => {
-    setSession(session);
-    setUser(session?.user ?? null);
+---
 
-    if (session?.user) {
-      const userId = session.user.id;
-      // Defer to next tick so Supabase client sets auth headers first
-      setTimeout(() => {
-        Promise.all([fetchProfile(userId), fetchRole(userId)]).then(() => {
-          if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-            initialSessionHandled = true;
-            setLoading(false);
-          }
-        });
-      }, 0);
-    } else {
-      setProfile(null);
-      setRole(null);
-      setRoleChecked(true);
-      if (event === 'INITIAL_SESSION' || !initialSessionHandled) {
-        initialSessionHandled = true;
-        setLoading(false);
-      }
-    }
-  }
-);
-```
+### 2. KPIs vinculados a projetos
 
-Também ajustar o fallback timeout para garantir que ele também chama `setLoading(false)` após as queries completarem (não antes).
+**Migration SQL:**
+- Adicionar coluna `projeto_id uuid REFERENCES projetos(id)` na tabela `kpis` (nullable)
 
-### Por que isso resolve
+**UI — `NovoKPIDialog.tsx`:**
+- Adicionar select "Projeto" que carrega lista de projetos para vincular o KPI
 
-- `setTimeout(fn, 0)` retorna o controle ao Supabase para que ele configure o token JWT
-- As queries de `fetchProfile`/`fetchRole` rodam no próximo tick, com autenticação válida
-- `loading` permanece `true` até ambas completarem, evitando renders prematuros
-- O Dashboard carrega depois com `role` correto e faz suas queries já autenticado
+**UI — `ProjetoDetalhe.tsx`:**
+- Nova seção "Indicadores (KPIs)" após SWOT/Etapas
+- Lista os KPIs do projeto com valor atual, meta, sparkline e botão para registrar medição
+- Botão "Novo KPI" pré-preenchido com `projeto_id`
+
+**UI — `KPIs.tsx` e `KPIDetalhe.tsx`:**
+- Exibir nome do projeto vinculado no card/badge quando houver
+
+---
+
+### 3. Extração automática de KPIs dos documentos
+
+**Edge function — atualizar `import-projects-bulk`:**
+- Adicionar campo `kpis` no schema de tool calling: `kpis: [{ nome, descricao, unidade, meta, periodicidade }]`
+- A IA extrairá KPIs de cada projeto do documento
+
+**UI — `ImportarProjetosMassa.tsx`:**
+- Exibir KPIs extraídos em accordion dentro de cada projeto (similar a etapas)
+- Na criação em lote, inserir KPIs na tabela `kpis` com `projeto_id` vinculado
+
+**UI — `ProjetoDetalhe.tsx` (botão dedicado):**
+- Botão "Extrair KPIs com IA" na seção de KPIs do projeto
+- Chama edge function `ai-project-assistant` com modo `extract-kpis` passando contexto do projeto
+- Exibe sugestões de KPIs para aceitar/rejeitar (mesmo padrão das sugestões de etapas)
+
+---
+
+### Arquivos
+
+| Arquivo | Ação |
+|---------|------|
+| Migration SQL | Nova tabela `categorias_projeto`, coluna `categoria_id` em projetos, coluna `projeto_id` em kpis |
+| `src/pages/Projetos.tsx` | Filtro e agrupamento por categoria, dialog de gestão |
+| `src/pages/NovoProjeto.tsx` | Select de categoria |
+| `src/pages/ImportarProjetosMassa.tsx` | Select de categoria, accordion de KPIs, inserção em lote |
+| `src/pages/ProjetoDetalhe.tsx` | Seção KPIs do projeto, botão extrair KPIs com IA |
+| `src/components/kpis/NovoKPIDialog.tsx` | Select de projeto |
+| `src/pages/KPIs.tsx` | Exibir projeto vinculado |
+| `src/pages/KPIDetalhe.tsx` | Badge do projeto |
+| `src/components/kpis/KPICard.tsx` | Exibir nome do projeto |
+| `supabase/functions/import-projects-bulk/index.ts` | Schema de KPIs no tool calling |
+| `supabase/functions/ai-project-assistant/index.ts` | Novo modo `extract-kpis` |
 
