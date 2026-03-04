@@ -481,7 +481,25 @@ export default function NovoProjeto() {
                   <Label htmlFor="justificativa">{isCoordination ? "Descrição" : "Justificativa"} *</Label>
                   <Textarea id="justificativa" value={form.justificativa} onChange={(e) => update("justificativa", e.target.value)} placeholder="Descreva o projeto e sua justificativa..." required rows={4} />
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {categorias.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Categoria / Pasta</Label>
+                      <Select value={form.categoria_id} onValueChange={(v) => update("categoria_id", v)}>
+                        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectContent>
+                          {categorias.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.cor || "#6366f1" }} />
+                                {c.nome}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )
                   <div className="space-y-2">
                     <Label>Área Estratégica</Label>
                     <Select value={form.area_id} onValueChange={(v) => update("area_id", v)}>
