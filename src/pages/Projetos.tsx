@@ -229,6 +229,15 @@ export default function Projetos() {
       {selectionMode && (
         <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50 sticky top-0 z-10">
           <span className="text-sm font-medium">{selectedIds.size} selecionado(s)</span>
+          <Button variant="outline" size="sm" onClick={() => {
+            if (selectedIds.size === filtered.length && filtered.length > 0) {
+              setSelectedIds(new Set());
+            } else {
+              setSelectedIds(new Set(filtered.map((p) => p.id)));
+            }
+          }}>
+            {selectedIds.size === filtered.length && filtered.length > 0 ? "Desmarcar Todos" : "Selecionar Todos"}
+          </Button>
           <Select value={moveTarget} onValueChange={setMoveTarget}>
             <SelectTrigger className="w-[200px]"><SelectValue placeholder="Mover para..." /></SelectTrigger>
             <SelectContent>
