@@ -476,6 +476,48 @@ export default function ProjetoDetalhe() {
     setEtapaSuggestions((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // --- AI KPI extraction ---
+  const suggestKpis = async () => {
+    const ctx = buildProjectContext();
+    if (!ctx) return;
+    setKpiSugLoading(true);
+    setKpiSuggestions([]);
+
+    try {
+      const resp = await supabase.functions.invoke("ai-project-assistant", {
+        body: { mode: "extract-kpis", context: { ...ctx, existingKpis: projetoKpis.map((k: any) => k.nome) } },
+      });
+      if (resp.error) throw new Error(resp.error.message);
+      if (resp.data?.error) { toast.error(resp.data.error); return; }
+      setKpiSuggestions(resp.data?.suggestions || []);
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao extrair KPIs");
+    } finally {
+      setKpiSugLoading(false);
+    }
+  };
+
+  const acceptKpiSuggestion = async (index: number) => {
+    const s = kpiSuggestions[index];
+    const { error } = await supabase.from("kpis").insert({
+      projeto_id: id,
+      nome: s.nome,
+      descricao: s.descricao || null,
+      unidade: s.unidade || "%",
+      meta: s.meta || 0,
+      periodicidade: s.periodicidade || "mensal",
+      criado_por: user?.id || null,
+    } as any);
+    if (error) { toast.error("Erro ao criar KPI"); return; }
+    setKpiSuggestions((prev) => prev.filter((_, i) => i !== index));
+    loadData();
+    toast.success("KPI adicionado");
+  };
+
+  const dismissKpiSuggestion = (index: number) => {
+    setKpiSuggestions((prev) => prev.filter((_, i) => i !== index));
+  };
+
   // --- Existing handlers ---
   const addEtapa = async () => {
     if (!novaEtapa.nome.trim()) return;
