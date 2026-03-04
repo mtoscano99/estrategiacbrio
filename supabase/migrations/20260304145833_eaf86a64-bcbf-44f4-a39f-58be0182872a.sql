@@ -1,0 +1,1 @@
+ALTER TABLE public.anexos_projeto ADD CONSTRAINT anexos_projeto_enviado_por_fkey FOREIGN KEY (enviado_por) REFERENCES public.profiles(id);

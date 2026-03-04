@@ -92,6 +92,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "anexos_projeto_enviado_por_fkey"
+            columns: ["enviado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "anexos_projeto_projeto_id_fkey"
             columns: ["projeto_id"]
             isOneToOne: false
