@@ -534,6 +534,44 @@ export default function ImportarProjetosMassa() {
                           </AccordionContent>
                         </AccordionItem>
                       )}
+
+                      {/* KPIs */}
+                      {proj.kpis && proj.kpis.length > 0 && (
+                        <AccordionItem value="kpis">
+                          <AccordionTrigger className="text-sm py-2">
+                            📊 KPIs ({proj.kpis.length})
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-2">
+                              {proj.kpis.map((kpi, ki) => (
+                                <div key={ki} className="rounded border bg-muted/30 p-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground w-4 text-center">{ki + 1}</span>
+                                    <div className="flex-1">
+                                      <p className="text-xs font-medium">{kpi.nome}</p>
+                                      {kpi.descricao && <p className="text-xs text-muted-foreground">{kpi.descricao}</p>}
+                                      <p className="text-xs text-muted-foreground">
+                                        Meta: {kpi.meta || 0} {kpi.unidade || "%"} · {kpi.periodicidade || "mensal"}
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive"
+                                      onClick={() => {
+                                        setProjects(prev => prev.map((p, i) => {
+                                          if (i !== idx) return p;
+                                          return { ...p, kpis: (p.kpis || []).filter((_, kIdx) => kIdx !== ki) };
+                                        }));
+                                      }}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
                     </Accordion>
                   </div>
                 </div>
