@@ -326,6 +326,7 @@ export default function Projetos() {
               </DialogContent>
             </Dialog>
           )}
+          {isCoordination && <ImportarContatosDialog />}
           <Button variant="outline" asChild>
             <Link to="/importar-projetos">
               <FileStack className="h-4 w-4 mr-2" /> Importar em Massa
