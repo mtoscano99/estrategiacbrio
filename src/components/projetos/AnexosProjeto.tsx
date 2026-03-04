@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,7 +42,9 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
   const { user, isCoordination } = useAuth();
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
 
   useEffect(() => {
     loadAnexos();
@@ -57,12 +59,10 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
     if (data) setAnexos(data);
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || !user) return;
+  const uploadFiles = useCallback(async (files: File[]) => {
+    if (!user || files.length === 0) return;
 
-    const toUpload = Array.from(files);
-    const oversized = toUpload.filter((f) => f.size > MAX_FILE_SIZE);
+    const oversized = files.filter((f) => f.size > MAX_FILE_SIZE);
     if (oversized.length > 0) {
       toast.error(`Arquivos acima de 20MB: ${oversized.map((f) => f.name).join(", ")}`);
       return;
@@ -71,7 +71,7 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
     setUploading(true);
     let successCount = 0;
 
-    for (const file of toUpload) {
+    for (const file of files) {
       const uid = crypto.randomUUID();
       const storagePath = `${projetoId}/${uid}-${file.name}`;
 
@@ -105,7 +105,45 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
       loadAnexos();
     }
     setUploading(false);
+  }, [user, projetoId]);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    uploadFiles(Array.from(files));
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) uploadFiles(files);
   };
 
   const handleDownload = (anexo: Anexo) => {
@@ -142,7 +180,13 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
   const canDelete = (anexo: Anexo) => isCoordination || anexo.enviado_por === user?.id;
 
   return (
-    <Card>
+    <Card
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className={isDragging ? "ring-2 ring-primary border-primary" : ""}
+    >
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg flex items-center gap-2">
           <Paperclip className="h-5 w-5" /> Anexos e Documentos
@@ -166,9 +210,22 @@ export default function AnexosProjeto({ projetoId }: { projetoId: string }) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        {anexos.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Nenhum anexo enviado</p>
+      <CardContent className="relative">
+        {isDragging && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-md border-2 border-dashed border-primary bg-primary/5 backdrop-blur-sm">
+            <Upload className="h-10 w-10 text-primary mb-2" />
+            <p className="text-sm font-medium text-primary">Solte os arquivos aqui</p>
+          </div>
+        )}
+
+        {anexos.length === 0 && !isDragging ? (
+          <div
+            className="flex flex-col items-center justify-center py-8 text-muted-foreground cursor-pointer border-2 border-dashed border-muted rounded-md hover:border-primary/40 transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm">Arraste arquivos aqui ou clique para adicionar</p>
+          </div>
         ) : (
           <Table>
             <TableHeader>
