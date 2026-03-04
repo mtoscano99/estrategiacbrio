@@ -788,12 +788,36 @@ export default function ProjetoDetalhe() {
         );
       })()}
 
-      {projeto.descricao && (
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Descrição</CardTitle></CardHeader>
-          <CardContent><p className="text-sm text-muted-foreground whitespace-pre-wrap">{projeto.descricao}</p></CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Descrição</CardTitle></CardHeader>
+        <CardContent>
+          {(isCoordination || (role === "lider_area" && projeto.area_id === profile?.area_id)) ? (
+            <Textarea
+              defaultValue={projeto.descricao || ""}
+              placeholder="Adicionar descrição..."
+              className="min-h-[100px] text-sm"
+              onBlur={async (e) => {
+                const newValue = e.target.value.trim();
+                if (newValue === (projeto.descricao || "").trim()) return;
+                const { error } = await supabase
+                  .from("projetos")
+                  .update({ descricao: newValue || null })
+                  .eq("id", id!);
+                if (error) {
+                  toast.error("Erro ao salvar descrição");
+                } else {
+                  setProjeto((prev: any) => prev ? { ...prev, descricao: newValue || null } : prev);
+                  toast.success("Descrição salva");
+                }
+              }}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+              {projeto.descricao || "Sem descrição"}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Anexos */}
       <AnexosProjeto projetoId={id!} />
