@@ -329,18 +329,22 @@ export default function ProjetoDetalhe() {
   }, [etapas, location.hash]);
 
   const loadData = async () => {
-    const [projetoRes, etapasRes, comentariosRes, profilesRes, contatosRes] = await Promise.all([
+    const [projetoRes, etapasRes, comentariosRes, profilesRes, contatosRes, kpiRes, kpiMedRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
       supabase.from("etapas_projeto").select("*").eq("projeto_id", id).order("ordem"),
       supabase.from("comentarios").select("*, profiles!comentarios_autor_id_fkey(nome)").eq("projeto_id", id).order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, nome, avatar_url"),
       supabase.from("contatos_externos").select("id, nome, email, cargo, organizacao"),
+      supabase.from("kpis").select("id, nome, unidade, meta, periodicidade, descricao").eq("projeto_id", id),
+      supabase.from("kpi_medicoes").select("id, kpi_id, valor, data_referencia, observacao"),
     ]);
     if (projetoRes.data) setProjeto(projetoRes.data);
     if (etapasRes.data) setEtapas(etapasRes.data);
     if (comentariosRes.data) setComentarios(comentariosRes.data);
     if (profilesRes.data) setProfiles(profilesRes.data);
     if (contatosRes.data) setContatosExternos(contatosRes.data);
+    if (kpiRes.data) setProjetoKpis(kpiRes.data as any);
+    if (kpiMedRes.data) setKpiMedicoes(kpiMedRes.data as any);
   };
 
   const buildProjectContext = useCallback(() => {
