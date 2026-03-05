@@ -203,7 +203,9 @@ function SortableEtapaItem({
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
-                  <Select
+                  <ResponsavelCombobox
+                    profiles={profiles}
+                    contatosExternos={contatosExternos}
                     value={etapa.responsavel_externo_id ? `ext:${etapa.responsavel_externo_id}` : (etapa.responsavel_id || "")}
                     onValueChange={(val) => {
                       if (val === "__novo_externo__") {
@@ -216,40 +218,8 @@ function SortableEtapaItem({
                         updateEtapa(etapa.id, "responsavel_externo_id", null);
                       }
                     }}
-                  >
-                    <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                    <SelectContent>
-                      {profiles.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          <div className="flex items-center gap-2">
-                            <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
-                            <span>{p.nome}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                      {contatosExternos.length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Externos</div>
-                          {contatosExternos.map((c: any) => (
-                            <SelectItem key={`ext:${c.id}`} value={`ext:${c.id}`}>
-                              <div className="flex items-center gap-2">
-                                <UserPlus className="h-4 w-4 text-muted-foreground" />
-                                <span>{c.nome}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
-                      <div className="border-t mt-1 pt-1">
-                        <SelectItem value="__novo_externo__">
-                          <div className="flex items-center gap-2 text-primary">
-                            <UserPlus className="h-4 w-4" />
-                            <span>Adicionar externo...</span>
-                          </div>
-                        </SelectItem>
-                      </div>
-                    </SelectContent>
-                  </Select>
+                    triggerClassName="h-9 text-xs"
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Valor Gasto (R$)</label>
@@ -855,7 +825,9 @@ export default function ProjetoDetalhe() {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
-                  <Select
+                  <ResponsavelCombobox
+                    profiles={profiles}
+                    contatosExternos={contatosExternos}
                     value={novaEtapa.responsavel_externo_id ? `ext:${novaEtapa.responsavel_externo_id}` : novaEtapa.responsavel_id}
                     onValueChange={(val) => {
                       if (val === "__novo_externo__") {
@@ -867,40 +839,8 @@ export default function ProjetoDetalhe() {
                         setNovaEtapa({ ...novaEtapa, responsavel_id: val, responsavel_externo_id: "" });
                       }
                     }}
-                  >
-                    <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                    <SelectContent>
-                      {profiles.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          <div className="flex items-center gap-2">
-                            <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
-                            <span>{p.nome}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                      {contatosExternos.length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Externos</div>
-                          {contatosExternos.map((c) => (
-                            <SelectItem key={`ext:${c.id}`} value={`ext:${c.id}`}>
-                              <div className="flex items-center gap-2">
-                                <UserPlus className="h-4 w-4 text-muted-foreground" />
-                                <span>{c.nome}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
-                      <div className="border-t mt-1 pt-1">
-                        <SelectItem value="__novo_externo__">
-                          <div className="flex items-center gap-2 text-primary">
-                            <UserPlus className="h-4 w-4" />
-                            <span>Adicionar externo...</span>
-                          </div>
-                        </SelectItem>
-                      </div>
-                    </SelectContent>
-                  </Select>
+                    triggerClassName="h-9 text-xs"
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Valor Gasto (R$)</label>

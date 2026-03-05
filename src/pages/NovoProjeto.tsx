@@ -537,7 +537,9 @@ export default function NovoProjeto() {
                     <Label>Responsável</Label>
                     {isCoordination ? (
                       <>
-                        <Select
+                        <ResponsavelCombobox
+                          profiles={profiles}
+                          contatosExternos={contatosExternos}
                           value={form.responsavel_externo_id ? `ext:${form.responsavel_externo_id}` : form.responsavel_id}
                           onValueChange={(v) => {
                             if (v === "__novo_externo__") {
@@ -548,41 +550,7 @@ export default function NovoProjeto() {
                               setForm({ ...form, responsavel_id: v, responsavel_externo_id: "" });
                             }
                           }}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Selecione o responsável" /></SelectTrigger>
-                          <SelectContent>
-                            {profiles.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                <div className="flex items-center gap-2">
-                                  <UserAvatar avatarUrl={p.avatar_url} nome={p.nome} className="h-5 w-5" />
-                                  <span>{p.nome}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                            {contatosExternos.length > 0 && (
-                              <>
-                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">Contatos Externos</div>
-                                {contatosExternos.map((c) => (
-                                  <SelectItem key={`ext:${c.id}`} value={`ext:${c.id}`}>
-                                    <div className="flex items-center gap-2">
-                                      <UserPlus className="h-4 w-4 text-muted-foreground" />
-                                      <span>{c.nome}</span>
-                                      {c.organizacao && <span className="text-xs text-muted-foreground">({c.organizacao})</span>}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </>
-                            )}
-                            <div className="border-t mt-1 pt-1">
-                              <SelectItem value="__novo_externo__">
-                                <div className="flex items-center gap-2 text-primary">
-                                  <UserPlus className="h-4 w-4" />
-                                  <span>Adicionar pessoa externa...</span>
-                                </div>
-                              </SelectItem>
-                            </div>
-                          </SelectContent>
-                        </Select>
+                        />
                         <NovoContatoExternoDialog
                           open={showNovoContato}
                           onOpenChange={setShowNovoContato}
