@@ -319,6 +319,7 @@ export default function ProjetoDetalhe() {
     if (contatosRes.data) setContatosExternos(contatosRes.data);
     if (kpiRes.data) setProjetoKpis(kpiRes.data as any);
     if (kpiMedRes.data) setKpiMedicoes(kpiMedRes.data as any);
+    if (catRes.data) setCategorias(catRes.data as any);
   };
 
   const buildProjectContext = useCallback(() => {
