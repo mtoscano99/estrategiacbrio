@@ -302,14 +302,15 @@ export default function ProjetoDetalhe() {
   }, [etapas, location.hash]);
 
   const loadData = async () => {
-    const [projetoRes, etapasRes, comentariosRes, profilesRes, contatosRes, kpiRes, kpiMedRes] = await Promise.all([
-      supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
+   const [projetoRes, etapasRes, comentariosRes, profilesRes, contatosRes, kpiRes, kpiMedRes, catRes] = await Promise.all([
+      supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo), categorias_projeto(id, nome, cor)").eq("id", id).single(),
       supabase.from("etapas_projeto").select("*").eq("projeto_id", id).order("ordem"),
       supabase.from("comentarios").select("*, profiles!comentarios_autor_id_fkey(nome)").eq("projeto_id", id).order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, nome, avatar_url"),
       supabase.from("contatos_externos").select("id, nome, email, cargo, organizacao"),
       supabase.from("kpis").select("id, nome, unidade, meta, periodicidade, descricao").eq("projeto_id", id),
       supabase.from("kpi_medicoes").select("id, kpi_id, valor, data_referencia, observacao"),
+      supabase.from("categorias_projeto").select("id, nome, cor").order("nome"),
     ]);
     if (projetoRes.data) setProjeto(projetoRes.data);
     if (etapasRes.data) setEtapas(etapasRes.data);
