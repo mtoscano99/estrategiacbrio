@@ -27,6 +27,7 @@ import ReactMarkdown from "react-markdown";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import SWOTMatrix from "@/components/projetos/SWOTMatrix";
+import { FolderOpen } from "lucide-react";
 import AnexosProjeto from "@/components/projetos/AnexosProjeto";
 import { UserAvatar } from "@/components/UserAvatar";
 import NovoContatoExternoDialog from "@/components/projetos/NovoContatoExternoDialog";
