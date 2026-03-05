@@ -267,6 +267,7 @@ export default function ProjetoDetalhe() {
   const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", responsavel_externo_id: "", valor_gasto: "" });
   const [showAddEtapa, setShowAddEtapa] = useState(false);
   const [expandedEtapa, setExpandedEtapa] = useState<string | null>(null);
+  const [categorias, setCategorias] = useState<any[]>([]);
 
   // KPI state
   const [projetoKpis, setProjetoKpis] = useState<any[]>([]);
