@@ -27,6 +27,7 @@ import ReactMarkdown from "react-markdown";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import SWOTMatrix from "@/components/projetos/SWOTMatrix";
+import { FolderOpen } from "lucide-react";
 import AnexosProjeto from "@/components/projetos/AnexosProjeto";
 import { UserAvatar } from "@/components/UserAvatar";
 import NovoContatoExternoDialog from "@/components/projetos/NovoContatoExternoDialog";
@@ -266,6 +267,7 @@ export default function ProjetoDetalhe() {
   const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", responsavel_externo_id: "", valor_gasto: "" });
   const [showAddEtapa, setShowAddEtapa] = useState(false);
   const [expandedEtapa, setExpandedEtapa] = useState<string | null>(null);
+  const [categorias, setCategorias] = useState<any[]>([]);
 
   // KPI state
   const [projetoKpis, setProjetoKpis] = useState<any[]>([]);
@@ -300,14 +302,15 @@ export default function ProjetoDetalhe() {
   }, [etapas, location.hash]);
 
   const loadData = async () => {
-    const [projetoRes, etapasRes, comentariosRes, profilesRes, contatosRes, kpiRes, kpiMedRes] = await Promise.all([
-      supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
+   const [projetoRes, etapasRes, comentariosRes, profilesRes, contatosRes, kpiRes, kpiMedRes, catRes] = await Promise.all([
+      supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo), categorias_projeto(id, nome, cor)").eq("id", id).single(),
       supabase.from("etapas_projeto").select("*").eq("projeto_id", id).order("ordem"),
       supabase.from("comentarios").select("*, profiles!comentarios_autor_id_fkey(nome)").eq("projeto_id", id).order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, nome, avatar_url"),
       supabase.from("contatos_externos").select("id, nome, email, cargo, organizacao"),
       supabase.from("kpis").select("id, nome, unidade, meta, periodicidade, descricao").eq("projeto_id", id),
       supabase.from("kpi_medicoes").select("id, kpi_id, valor, data_referencia, observacao"),
+      supabase.from("categorias_projeto").select("id, nome, cor").order("nome"),
     ]);
     if (projetoRes.data) setProjeto(projetoRes.data);
     if (etapasRes.data) setEtapas(etapasRes.data);
@@ -316,6 +319,7 @@ export default function ProjetoDetalhe() {
     if (contatosRes.data) setContatosExternos(contatosRes.data);
     if (kpiRes.data) setProjetoKpis(kpiRes.data as any);
     if (kpiMedRes.data) setKpiMedicoes(kpiMedRes.data as any);
+    if (catRes.data) setCategorias(catRes.data as any);
   };
 
   const buildProjectContext = useCallback(() => {
@@ -586,7 +590,42 @@ export default function ProjetoDetalhe() {
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-display font-bold">{projeto.nome}</h1>
-          <p className="text-muted-foreground text-sm">{projeto.areas_estrategicas?.nome}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-muted-foreground text-sm">{projeto.areas_estrategicas?.nome}</p>
+            {(isCoordination || projeto.responsavel_id === user?.id) && categorias.length > 0 ? (
+              <Select
+                value={projeto.categoria_id || "__none__"}
+                onValueChange={async (val) => {
+                  const target = val === "__none__" ? null : val;
+                  const { error } = await supabase.from("projetos").update({ categoria_id: target } as any).eq("id", id);
+                  if (error) { toast.error("Erro ao atualizar pasta"); return; }
+                  setProjeto((prev: any) => ({ ...prev, categoria_id: target }));
+                  toast.success("Pasta atualizada");
+                }}
+              >
+                <SelectTrigger className="h-7 w-auto gap-1 text-xs border-dashed px-2">
+                  <FolderOpen className="h-3 w-3" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem Pasta</SelectItem>
+                  {categorias.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.cor || "#6366f1" }} />
+                        {c.nome}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : projeto.categorias_projeto ? (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: projeto.categorias_projeto.cor || "#6366f1" }} />
+                {projeto.categorias_projeto.nome}
+              </span>
+            ) : null}
+          </div>
         </div>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={requestAnalise}>
           <Sparkles className="h-4 w-4" /> Sugestões IA
