@@ -590,7 +590,42 @@ export default function ProjetoDetalhe() {
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-display font-bold">{projeto.nome}</h1>
-          <p className="text-muted-foreground text-sm">{projeto.areas_estrategicas?.nome}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-muted-foreground text-sm">{projeto.areas_estrategicas?.nome}</p>
+            {(isCoordination || projeto.responsavel_id === user?.id) && categorias.length > 0 ? (
+              <Select
+                value={projeto.categoria_id || "__none__"}
+                onValueChange={async (val) => {
+                  const target = val === "__none__" ? null : val;
+                  const { error } = await supabase.from("projetos").update({ categoria_id: target } as any).eq("id", id);
+                  if (error) { toast.error("Erro ao atualizar pasta"); return; }
+                  setProjeto((prev: any) => ({ ...prev, categoria_id: target }));
+                  toast.success("Pasta atualizada");
+                }}
+              >
+                <SelectTrigger className="h-7 w-auto gap-1 text-xs border-dashed px-2">
+                  <FolderOpen className="h-3 w-3" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem Pasta</SelectItem>
+                  {categorias.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.cor || "#6366f1" }} />
+                        {c.nome}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : projeto.categorias_projeto ? (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: projeto.categorias_projeto.cor || "#6366f1" }} />
+                {projeto.categorias_projeto.nome}
+              </span>
+            ) : null}
+          </div>
         </div>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={requestAnalise}>
           <Sparkles className="h-4 w-4" /> Sugestões IA
