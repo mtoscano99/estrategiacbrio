@@ -416,14 +416,33 @@ export default function Projetos() {
                   </div>
                 );
               }
+              const groupIds = group.projetos.map((p: any) => p.id);
+              const allSelected = groupIds.length > 0 && groupIds.every((id: string) => selectedIds.has(id));
+              const someSelected = groupIds.some((id: string) => selectedIds.has(id));
               return (
                 <Collapsible key="__none__" open={!isCollapsed} onOpenChange={() => toggleCollapse("__none__")}>
-                  <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-2 px-1 hover:bg-muted/50 rounded transition-colors">
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
-                    <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-semibold text-muted-foreground">Sem Categoria</span>
-                    <Badge variant="secondary" className="ml-1 text-xs">{group.projetos.length}</Badge>
-                  </CollapsibleTrigger>
+                  <div className="flex items-center gap-2 py-2 px-1 hover:bg-muted/50 rounded transition-colors">
+                    {selectionMode && (
+                      <Checkbox
+                        checked={allSelected}
+                        className="shrink-0"
+                        onCheckedChange={() => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (allSelected) { groupIds.forEach((id: string) => next.delete(id)); }
+                            else { groupIds.forEach((id: string) => next.add(id)); }
+                            return next;
+                          });
+                        }}
+                      />
+                    )}
+                    <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-semibold text-muted-foreground">Sem Categoria</span>
+                      <Badge variant="secondary" className="ml-1 text-xs">{group.projetos.length}</Badge>
+                    </CollapsibleTrigger>
+                  </div>
                   <CollapsibleContent>
                     <div className="grid gap-3 mt-2 ml-6">
                       {group.projetos.map(renderProjectCard)}
@@ -433,14 +452,32 @@ export default function Projetos() {
               );
             }
 
+            const groupIds = group.projetos.map((p: any) => p.id);
+            const allSelected = groupIds.length > 0 && groupIds.every((id: string) => selectedIds.has(id));
             return (
               <Collapsible key={catId} open={!isCollapsed} onOpenChange={() => toggleCollapse(catId)}>
-                <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-2 px-1 hover:bg-muted/50 rounded transition-colors">
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
-                  <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: group.categoria.cor || "#6366f1" }} />
-                  <span className="text-sm font-semibold">{group.categoria.nome}</span>
-                  <Badge variant="secondary" className="ml-1 text-xs">{group.projetos.length}</Badge>
-                </CollapsibleTrigger>
+                <div className="flex items-center gap-2 py-2 px-1 hover:bg-muted/50 rounded transition-colors">
+                  {selectionMode && (
+                    <Checkbox
+                      checked={allSelected}
+                      className="shrink-0"
+                      onCheckedChange={() => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (allSelected) { groupIds.forEach((id: string) => next.delete(id)); }
+                          else { groupIds.forEach((id: string) => next.add(id)); }
+                          return next;
+                        });
+                      }}
+                    />
+                  )}
+                  <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: group.categoria.cor || "#6366f1" }} />
+                    <span className="text-sm font-semibold">{group.categoria.nome}</span>
+                    <Badge variant="secondary" className="ml-1 text-xs">{group.projetos.length}</Badge>
+                  </CollapsibleTrigger>
+                </div>
                 <CollapsibleContent>
                   <div className="grid gap-3 mt-2 ml-6">
                     {group.projetos.map(renderProjectCard)}
