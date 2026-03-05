@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import UserAvatar from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/UserAvatar";
 
 interface Profile {
   id: string;
