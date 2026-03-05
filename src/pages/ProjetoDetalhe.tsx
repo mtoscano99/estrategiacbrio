@@ -30,6 +30,7 @@ import SWOTMatrix from "@/components/projetos/SWOTMatrix";
 import AnexosProjeto from "@/components/projetos/AnexosProjeto";
 import { UserAvatar } from "@/components/UserAvatar";
 import NovoContatoExternoDialog from "@/components/projetos/NovoContatoExternoDialog";
+import ResponsavelCombobox from "@/components/projetos/ResponsavelCombobox";
 import { NovoKPIDialog } from "@/components/kpis/NovoKPIDialog";
 import { NovaMedicaoDialog } from "@/components/kpis/NovaMedicaoDialog";
 import { LineChart as ReLineChart, Line as ReLine, ResponsiveContainer as ReResponsive } from "recharts";
