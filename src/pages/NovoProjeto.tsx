@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { FilePlus, Upload, Loader2, Trash2, ChevronDown, ChevronUp, GripVertical, UserPlus } from "lucide-react";
 import { UserAvatar } from "@/components/UserAvatar";
 import NovoContatoExternoDialog from "@/components/projetos/NovoContatoExternoDialog";
+import ResponsavelCombobox from "@/components/projetos/ResponsavelCombobox";
 
 interface ExtractedEtapa {
   nome: string;
