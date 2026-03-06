@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -22,6 +23,7 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/projetos", label: "Projetos", icon: FolderKanban },
   { to: "/novo-projeto", label: "Novo Projeto", icon: FilePlus },
+  { to: "/importar-ata", label: "Importar ATA", icon: FileText },
   { to: "/calendario", label: "Calendário", icon: CalendarDays },
   { to: "/kpis", label: "KPIs", icon: BarChart3 },
   { to: "/aprovacoes", label: "Aprovações", icon: CheckSquare, coordOnly: true },

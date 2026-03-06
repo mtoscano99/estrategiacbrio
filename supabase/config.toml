@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.import-projects-bulk]
 verify_jwt = false
+
+[functions.process-ata]
+verify_jwt = false
