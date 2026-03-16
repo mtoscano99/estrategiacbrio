@@ -71,7 +71,7 @@ export default function Projetos() {
 
   const loadData = async () => {
     const [projetosRes, areasRes, catRes] = await Promise.all([
-      supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), categorias_projeto(id, nome, cor)").order("created_at", { ascending: false }),
+      supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(id, nome), categorias_projeto(id, nome, cor), contatos_externos(id, nome)").order("created_at", { ascending: false }),
       supabase.from("areas_estrategicas").select("id, nome"),
       supabase.from("categorias_projeto").select("id, nome, descricao, cor").order("nome"),
     ]);
