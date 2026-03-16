@@ -587,6 +587,60 @@ export default function ProjetoDetalhe() {
         <div className="flex-1">
           <h1 className="text-2xl font-display font-bold">{projeto.nome}</h1>
           <p className="text-muted-foreground text-sm">{projeto.areas_estrategicas?.nome}</p>
+          {/* Responsável macro do projeto */}
+          {(isCoordination || projeto.responsavel_id === user?.id) ? (
+            <div className="mt-1.5 max-w-[260px]">
+              <ResponsavelCombobox
+                profiles={profiles}
+                contatosExternos={contatosExternos}
+                value={
+                  projeto.responsavel_externo_id
+                    ? `ext:${projeto.responsavel_externo_id}`
+                    : (projeto.responsavel_id || "")
+                }
+                onValueChange={async (val) => {
+                  if (val === "__novo_externo__") {
+                    setPendingExternoEtapaId("__projeto__");
+                    setShowNovoContato(true);
+                    return;
+                  }
+                  let updateData: any = {};
+                  if (val.startsWith("ext:")) {
+                    updateData = { responsavel_externo_id: val.replace("ext:", ""), responsavel_id: null };
+                  } else {
+                    updateData = { responsavel_id: val, responsavel_externo_id: null };
+                  }
+                  const { error } = await supabase.from("projetos").update(updateData).eq("id", id);
+                  if (error) { toast.error("Erro ao atualizar responsável"); return; }
+                  setProjeto((prev: any) => prev ? { ...prev, ...updateData } : prev);
+                  toast.success("Responsável atualizado");
+                }}
+                placeholder="Atribuir responsável"
+                triggerClassName="h-8 text-xs"
+                showAddExterno
+              />
+            </div>
+          ) : (
+            (() => {
+              const respNome = projeto.responsavel_externo_id
+                ? contatosExternos.find((c: any) => c.id === projeto.responsavel_externo_id)?.nome
+                : profiles.find((p: any) => p.id === projeto.responsavel_id)?.nome;
+              const respAvatar = !projeto.responsavel_externo_id
+                ? profiles.find((p: any) => p.id === projeto.responsavel_id)?.avatar_url
+                : null;
+              return respNome ? (
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <UserAvatar avatarUrl={respAvatar} nome={respNome} className="h-5 w-5" />
+                  <span className="text-xs text-muted-foreground">{respNome}</span>
+                  {projeto.responsavel_externo_id && (
+                    <Badge variant="outline" className="text-[10px] py-0 px-1">Externo</Badge>
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground mt-1.5 block">Sem responsável</span>
+              );
+            })()
+          )}
         </div>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={requestAnalise}>
           <Sparkles className="h-4 w-4" /> Sugestões IA
@@ -1042,9 +1096,17 @@ export default function ProjetoDetalhe() {
       <NovoContatoExternoDialog
         open={showNovoContato}
         onOpenChange={setShowNovoContato}
-        onCreated={(contato) => {
+        onCreated={async (contato) => {
           setContatosExternos((prev) => [...prev, contato]);
-          if (pendingExternoEtapaId === "__new__") {
+          if (pendingExternoEtapaId === "__projeto__") {
+            // Atualizar responsável macro do projeto
+            const updateData = { responsavel_externo_id: contato.id, responsavel_id: null };
+            const { error } = await supabase.from("projetos").update(updateData).eq("id", id);
+            if (error) { toast.error("Erro ao atualizar responsável"); } else {
+              setProjeto((prev: any) => prev ? { ...prev, ...updateData } : prev);
+              toast.success("Responsável atualizado");
+            }
+          } else if (pendingExternoEtapaId === "__new__") {
             setNovaEtapa({ ...novaEtapa, responsavel_id: "", responsavel_externo_id: contato.id });
           } else if (pendingExternoEtapaId) {
             updateEtapa(pendingExternoEtapaId, "responsavel_externo_id", contato.id);
