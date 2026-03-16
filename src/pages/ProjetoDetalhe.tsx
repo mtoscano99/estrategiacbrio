@@ -1096,9 +1096,17 @@ export default function ProjetoDetalhe() {
       <NovoContatoExternoDialog
         open={showNovoContato}
         onOpenChange={setShowNovoContato}
-        onCreated={(contato) => {
+        onCreated={async (contato) => {
           setContatosExternos((prev) => [...prev, contato]);
-          if (pendingExternoEtapaId === "__new__") {
+          if (pendingExternoEtapaId === "__projeto__") {
+            // Atualizar responsável macro do projeto
+            const updateData = { responsavel_externo_id: contato.id, responsavel_id: null };
+            const { error } = await supabase.from("projetos").update(updateData).eq("id", id);
+            if (error) { toast.error("Erro ao atualizar responsável"); } else {
+              setProjeto((prev: any) => prev ? { ...prev, ...updateData } : prev);
+              toast.success("Responsável atualizado");
+            }
+          } else if (pendingExternoEtapaId === "__new__") {
             setNovaEtapa({ ...novaEtapa, responsavel_id: "", responsavel_externo_id: contato.id });
           } else if (pendingExternoEtapaId) {
             updateEtapa(pendingExternoEtapaId, "responsavel_externo_id", contato.id);
