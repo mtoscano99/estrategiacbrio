@@ -82,13 +82,30 @@ export default function Projetos() {
 
   const centrosCusto = [...new Set(projetos.map((p) => p.centro_custo).filter(Boolean))].sort();
 
+  // Extract unique responsáveis (internos + externos)
+  const responsaveis = (() => {
+    const map = new Map<string, { id: string; nome: string; tipo: "interno" | "externo" }>();
+    projetos.forEach((p) => {
+      if (p.responsavel_id && p.profiles?.nome) {
+        map.set(`int_${p.responsavel_id}`, { id: p.responsavel_id, nome: p.profiles.nome, tipo: "interno" });
+      }
+      if (p.responsavel_externo_id && p.contatos_externos?.nome) {
+        map.set(`ext_${p.responsavel_externo_id}`, { id: p.responsavel_externo_id, nome: p.contatos_externos.nome, tipo: "externo" });
+      }
+    });
+    return [...map.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+  })();
+
   const filtered = projetos.filter((p) => {
     const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase());
     const matchArea = filterArea === "all" || p.area_id === filterArea;
     const matchStatus = filterStatus === "all" || p.status === filterStatus;
     const matchCC = filterCC === "all" || p.centro_custo === filterCC;
     const matchCat = filterCategoria === "all" || (filterCategoria === "sem_categoria" ? !p.categoria_id : p.categoria_id === filterCategoria);
-    return matchSearch && matchArea && matchStatus && matchCC && matchCat;
+    const matchResp = filterResponsavel === "all" || filterResponsavel === "sem_responsavel"
+      ? (filterResponsavel === "all" || (!p.responsavel_id && !p.responsavel_externo_id))
+      : (p.responsavel_id === filterResponsavel || p.responsavel_externo_id === filterResponsavel);
+    return matchSearch && matchArea && matchStatus && matchCC && matchCat && matchResp;
   });
 
   // Group by category
