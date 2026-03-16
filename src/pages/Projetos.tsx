@@ -49,6 +49,7 @@ export default function Projetos() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCC, setFilterCC] = useState("all");
   const [filterCategoria, setFilterCategoria] = useState("all");
+  const [filterResponsavel, setFilterResponsavel] = useState("all");
 
   // Category management
   const [showCatDialog, setShowCatDialog] = useState(false);
