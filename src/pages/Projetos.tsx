@@ -410,6 +410,21 @@ export default function Projetos() {
             </SelectContent>
           </Select>
         )}
+        <Select value={filterResponsavel} onValueChange={setFilterResponsavel}>
+          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os Responsáveis</SelectItem>
+            <SelectItem value="sem_responsavel">Sem Responsável</SelectItem>
+            {responsaveis.map((r) => (
+              <SelectItem key={`${r.tipo}_${r.id}`} value={r.id}>
+                <div className="flex items-center gap-2">
+                  <span>{r.nome}</span>
+                  {r.tipo === "externo" && <Badge variant="outline" className="text-[10px] px-1 py-0">Externo</Badge>}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Project List - Grouped by Category */}
