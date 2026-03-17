@@ -299,6 +299,7 @@ export default function ProjetoDetalhe() {
   const [analiseLoading, setAnaliseLoading] = useState(false);
   const [etapaSuggestions, setEtapaSuggestions] = useState<{ nome: string; descricao: string }[]>([]);
   const [etapaSugLoading, setEtapaSugLoading] = useState(false);
+  const [suggestingDescricaoId, setSuggestingDescricaoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) loadData();
