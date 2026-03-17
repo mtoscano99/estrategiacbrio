@@ -360,7 +360,30 @@ export default function ProjetoDetalhe() {
     };
   }, [projeto, etapas]);
 
-  // --- AI Analysis (streaming) ---
+  const handleSuggestDescricao = async (etapaId: string, etapaNome: string) => {
+    const ctx = buildProjectContext();
+    if (!ctx) return;
+    setSuggestingDescricaoId(etapaId);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-project-assistant", {
+        body: { mode: "etapa-descricao", context: { ...ctx, etapaNome } },
+      });
+      if (error) throw error;
+      if (data?.descricao) {
+        // Update in DB and local state
+        const { error: updateErr } = await supabase.from("etapas_projeto").update({ descricao: data.descricao }).eq("id", etapaId);
+        if (updateErr) throw updateErr;
+        setEtapas((prev) => prev.map((e) => e.id === etapaId ? { ...e, descricao: data.descricao } : e));
+        toast.success("Descrição sugerida pela IA aplicada!");
+      }
+    } catch (err: any) {
+      console.error("Erro ao sugerir descrição:", err);
+      toast.error("Erro ao gerar sugestão de descrição");
+    } finally {
+      setSuggestingDescricaoId(null);
+    }
+  };
+
   const requestAnalise = async () => {
     const ctx = buildProjectContext();
     if (!ctx) return;
