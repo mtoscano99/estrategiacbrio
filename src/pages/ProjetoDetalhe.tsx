@@ -990,6 +990,8 @@ export default function ProjetoDetalhe() {
                       updateEtapa={updateEtapa}
                       deleteEtapa={deleteEtapa}
                       onAddExterno={(etapaId) => { setPendingExternoEtapaId(etapaId); setShowNovoContato(true); }}
+                      onSuggestDescricao={handleSuggestDescricao}
+                      suggestingDescricaoId={suggestingDescricaoId}
                     />
                   </div>
                 ))}
