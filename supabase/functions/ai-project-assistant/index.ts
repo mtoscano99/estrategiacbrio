@@ -26,6 +26,8 @@ serve(async (req) => {
       return await handleSwot(context, LOVABLE_API_KEY);
     } else if (mode === "etapas") {
       return await handleEtapas(context, LOVABLE_API_KEY);
+    } else if (mode === "etapa-descricao") {
+      return await handleEtapaDescricao(context, LOVABLE_API_KEY);
     } else if (mode === "docx") {
       return await handleDocx(context, LOVABLE_API_KEY);
     } else if (mode === "extract-kpis") {
