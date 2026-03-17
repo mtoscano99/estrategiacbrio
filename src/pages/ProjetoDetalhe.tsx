@@ -189,8 +189,24 @@ function SortableEtapaItem({
           <CollapsibleContent>
             <div className="px-3 pb-3 pt-1 border-t space-y-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Descrição</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-muted-foreground">Descrição</label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs gap-1 text-primary hover:text-primary"
+                    disabled={suggestingDescricaoId === etapa.id}
+                    onClick={() => onSuggestDescricao(etapa.id, etapa.nome)}
+                  >
+                    {suggestingDescricaoId === etapa.id ? (
+                      <><Loader2 className="h-3 w-3 animate-spin" /> Gerando...</>
+                    ) : (
+                      <><Sparkles className="h-3 w-3" /> Sugerir com IA</>
+                    )}
+                  </Button>
+                </div>
                 <Textarea
+                  key={`desc-${etapa.id}-${etapa.descricao}`}
                   defaultValue={etapa.descricao || ""}
                   placeholder="Adicionar descrição..."
                   className="min-h-[60px]"
