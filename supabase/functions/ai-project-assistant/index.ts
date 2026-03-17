@@ -26,6 +26,8 @@ serve(async (req) => {
       return await handleSwot(context, LOVABLE_API_KEY);
     } else if (mode === "etapas") {
       return await handleEtapas(context, LOVABLE_API_KEY);
+    } else if (mode === "etapa-descricao") {
+      return await handleEtapaDescricao(context, LOVABLE_API_KEY);
     } else if (mode === "docx") {
       return await handleDocx(context, LOVABLE_API_KEY);
     } else if (mode === "extract-kpis") {
@@ -423,6 +425,63 @@ Não repita KPIs já existentes. Seja específico e prático.`;
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
   if (!toolCall) {
     return new Response(JSON.stringify({ suggestions: [] }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const args = JSON.parse(toolCall.function.arguments);
+  return new Response(JSON.stringify(args), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function handleEtapaDescricao(ctx: any, apiKey: string) {
+  const systemPrompt = `Você é um consultor de gestão de projetos para uma organização brasileira.
+Com base no projeto e no nome da etapa fornecida, gere uma descrição curta e objetiva (1 a 3 frases) para essa etapa.
+A descrição deve explicar o que será feito nessa etapa, seu objetivo e entregáveis esperados.
+Responda apenas com o texto da descrição, sem formatação extra.`;
+
+  const response = await fetch(GATEWAY_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: buildProjectPrompt(ctx) + `\n\nEtapa para descrever: "${ctx.etapaNome}"` },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "generate_etapa_descricao",
+            description: "Retorna uma descrição curta e objetiva para a etapa do projeto.",
+            parameters: {
+              type: "object",
+              properties: {
+                descricao: { type: "string", description: "Descrição da etapa (1-3 frases)" },
+              },
+              required: ["descricao"],
+              additionalProperties: false,
+            },
+          },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "generate_etapa_descricao" } },
+    }),
+  });
+
+  if (!response.ok) {
+    return handleGatewayError(response);
+  }
+
+  const data = await response.json();
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (!toolCall) {
+    return new Response(JSON.stringify({ descricao: "" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

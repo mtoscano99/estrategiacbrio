@@ -108,6 +108,8 @@ function SortableEtapaItem({
   updateEtapa,
   deleteEtapa,
   onAddExterno,
+  onSuggestDescricao,
+  suggestingDescricaoId,
 }: {
   etapa: any;
   index: number;
@@ -118,6 +120,8 @@ function SortableEtapaItem({
   updateEtapa: (id: string, field: string, value: any) => void;
   deleteEtapa: (id: string) => void;
   onAddExterno: (etapaId: string) => void;
+  onSuggestDescricao: (etapaId: string, etapaNome: string) => void;
+  suggestingDescricaoId: string | null;
 }) {
   const {
     attributes,
@@ -185,8 +189,24 @@ function SortableEtapaItem({
           <CollapsibleContent>
             <div className="px-3 pb-3 pt-1 border-t space-y-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Descrição</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-muted-foreground">Descrição</label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs gap-1 text-primary hover:text-primary"
+                    disabled={suggestingDescricaoId === etapa.id}
+                    onClick={() => onSuggestDescricao(etapa.id, etapa.nome)}
+                  >
+                    {suggestingDescricaoId === etapa.id ? (
+                      <><Loader2 className="h-3 w-3 animate-spin" /> Gerando...</>
+                    ) : (
+                      <><Sparkles className="h-3 w-3" /> Sugerir com IA</>
+                    )}
+                  </Button>
+                </div>
                 <Textarea
+                  key={`desc-${etapa.id}-${etapa.descricao}`}
                   defaultValue={etapa.descricao || ""}
                   placeholder="Adicionar descrição..."
                   className="min-h-[60px]"
@@ -279,6 +299,7 @@ export default function ProjetoDetalhe() {
   const [analiseLoading, setAnaliseLoading] = useState(false);
   const [etapaSuggestions, setEtapaSuggestions] = useState<{ nome: string; descricao: string }[]>([]);
   const [etapaSugLoading, setEtapaSugLoading] = useState(false);
+  const [suggestingDescricaoId, setSuggestingDescricaoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) loadData();
@@ -339,7 +360,30 @@ export default function ProjetoDetalhe() {
     };
   }, [projeto, etapas]);
 
-  // --- AI Analysis (streaming) ---
+  const handleSuggestDescricao = async (etapaId: string, etapaNome: string) => {
+    const ctx = buildProjectContext();
+    if (!ctx) return;
+    setSuggestingDescricaoId(etapaId);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-project-assistant", {
+        body: { mode: "etapa-descricao", context: { ...ctx, etapaNome } },
+      });
+      if (error) throw error;
+      if (data?.descricao) {
+        // Update in DB and local state
+        const { error: updateErr } = await supabase.from("etapas_projeto").update({ descricao: data.descricao }).eq("id", etapaId);
+        if (updateErr) throw updateErr;
+        setEtapas((prev) => prev.map((e) => e.id === etapaId ? { ...e, descricao: data.descricao } : e));
+        toast.success("Descrição sugerida pela IA aplicada!");
+      }
+    } catch (err: any) {
+      console.error("Erro ao sugerir descrição:", err);
+      toast.error("Erro ao gerar sugestão de descrição");
+    } finally {
+      setSuggestingDescricaoId(null);
+    }
+  };
+
   const requestAnalise = async () => {
     const ctx = buildProjectContext();
     if (!ctx) return;
@@ -946,6 +990,8 @@ export default function ProjetoDetalhe() {
                       updateEtapa={updateEtapa}
                       deleteEtapa={deleteEtapa}
                       onAddExterno={(etapaId) => { setPendingExternoEtapaId(etapaId); setShowNovoContato(true); }}
+                      onSuggestDescricao={handleSuggestDescricao}
+                      suggestingDescricaoId={suggestingDescricaoId}
                     />
                   </div>
                 ))}
