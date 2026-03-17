@@ -108,6 +108,8 @@ function SortableEtapaItem({
   updateEtapa,
   deleteEtapa,
   onAddExterno,
+  onSuggestDescricao,
+  suggestingDescricaoId,
 }: {
   etapa: any;
   index: number;
@@ -118,6 +120,8 @@ function SortableEtapaItem({
   updateEtapa: (id: string, field: string, value: any) => void;
   deleteEtapa: (id: string) => void;
   onAddExterno: (etapaId: string) => void;
+  onSuggestDescricao: (etapaId: string, etapaNome: string) => void;
+  suggestingDescricaoId: string | null;
 }) {
   const {
     attributes,
