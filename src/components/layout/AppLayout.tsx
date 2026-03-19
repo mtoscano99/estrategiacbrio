@@ -12,7 +12,7 @@ export function AppLayout() {
         <header className="flex items-center justify-end px-6 py-2 border-b bg-background shrink-0 print:hidden">
           <NotificacoesDropdown />
         </header>
-        <main className="flex-1 overflow-y-auto bg-background">
+        <main className="flex-1 overflow-y-auto scroll-smooth bg-background">
           <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
             <Outlet />
           </div>
