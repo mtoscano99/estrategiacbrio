@@ -99,6 +99,10 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   * {
     @apply border-border;
   }
@@ -106,6 +110,11 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+  }
+
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
   }
 }
 
