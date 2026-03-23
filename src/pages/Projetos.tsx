@@ -113,8 +113,8 @@ export default function Projetos() {
     const matchCC = filterCC === "all" || p.centro_custo === filterCC;
     const matchCat = filterCategoria === "all" || (filterCategoria === "sem_categoria" ? !p.categoria_id : p.categoria_id === filterCategoria);
     const matchResp = filterResponsavel === "all" || filterResponsavel === "sem_responsavel"
-      ? (filterResponsavel === "all" || (!p.responsavel_id && !p.responsavel_externo_id))
-      : (p.responsavel_id === filterResponsavel || p.responsavel_externo_id === filterResponsavel);
+      ? (filterResponsavel === "all" || !projetoResponsaveis.some((r: any) => r.projeto_id === p.id))
+      : projetoResponsaveis.some((r: any) => r.projeto_id === p.id && (r.profile_id === filterResponsavel || r.contato_externo_id === filterResponsavel));
     return matchSearch && matchArea && matchStatus && matchCC && matchCat && matchResp;
   });
 
