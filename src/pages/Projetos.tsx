@@ -70,14 +70,16 @@ export default function Projetos() {
   }, []);
 
   const loadData = async () => {
-    const [projetosRes, areasRes, catRes] = await Promise.all([
+    const [projetosRes, areasRes, catRes, respRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(id, nome), categorias_projeto(id, nome, cor), contatos_externos(id, nome)").order("created_at", { ascending: false }),
       supabase.from("areas_estrategicas").select("id, nome"),
       supabase.from("categorias_projeto").select("id, nome, descricao, cor").order("nome"),
+      supabase.from("projeto_responsaveis").select("projeto_id, profile_id, contato_externo_id, profiles(id, nome, avatar_url), contatos_externos(id, nome)"),
     ]);
     if (projetosRes.data) setProjetos(projetosRes.data);
     if (areasRes.data) setAreas(areasRes.data);
     if (catRes.data) setCategorias(catRes.data as any);
+    if (respRes.data) setProjetoResponsaveis(respRes.data as any);
   };
 
   const centrosCusto = [...new Set(projetos.map((p) => p.centro_custo).filter(Boolean))].sort();
