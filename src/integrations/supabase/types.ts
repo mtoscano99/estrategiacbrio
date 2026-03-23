@@ -608,6 +608,52 @@ export type Database = {
           },
         ]
       }
+      projeto_responsaveis: {
+        Row: {
+          contato_externo_id: string | null
+          created_at: string
+          id: string
+          profile_id: string | null
+          projeto_id: string
+        }
+        Insert: {
+          contato_externo_id?: string | null
+          created_at?: string
+          id?: string
+          profile_id?: string | null
+          projeto_id: string
+        }
+        Update: {
+          contato_externo_id?: string | null
+          created_at?: string
+          id?: string
+          profile_id?: string | null
+          projeto_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projeto_responsaveis_contato_externo_id_fkey"
+            columns: ["contato_externo_id"]
+            isOneToOne: false
+            referencedRelation: "contatos_externos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_responsaveis_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projeto_responsaveis_projeto_id_fkey"
+            columns: ["projeto_id"]
+            isOneToOne: false
+            referencedRelation: "projetos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projetos: {
         Row: {
           area_id: string | null

@@ -282,6 +282,8 @@ export default function ProjetoDetalhe() {
   const [contatosExternos, setContatosExternos] = useState<any[]>([]);
   const [showNovoContato, setShowNovoContato] = useState(false);
   const [pendingExternoEtapaId, setPendingExternoEtapaId] = useState<string | null>(null);
+  const [responsaveis, setResponsaveis] = useState<any[]>([]);
+  const [showAddResponsavel, setShowAddResponsavel] = useState(false);
   const [novoComentario, setNovoComentario] = useState("");
   const [novaEtapa, setNovaEtapa] = useState({ nome: "", descricao: "", data_inicio: "", data_fim: "", responsavel_id: "", responsavel_externo_id: "", valor_gasto: "" });
   const [showAddEtapa, setShowAddEtapa] = useState(false);
@@ -321,7 +323,7 @@ export default function ProjetoDetalhe() {
   }, [etapas, location.hash]);
 
   const loadData = async () => {
-    const [projetoRes, etapasRes, comentariosRes, profilesRes, contatosRes, kpiRes, kpiMedRes] = await Promise.all([
+    const [projetoRes, etapasRes, comentariosRes, profilesRes, contatosRes, kpiRes, kpiMedRes, respRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(nome), objetivos_estrategicos(titulo)").eq("id", id).single(),
       supabase.from("etapas_projeto").select("*").eq("projeto_id", id).order("ordem"),
       supabase.from("comentarios").select("*, profiles!comentarios_autor_id_fkey(nome)").eq("projeto_id", id).order("created_at", { ascending: false }),
@@ -329,6 +331,7 @@ export default function ProjetoDetalhe() {
       supabase.from("contatos_externos").select("id, nome, email, cargo, organizacao"),
       supabase.from("kpis").select("id, nome, unidade, meta, periodicidade, descricao").eq("projeto_id", id),
       supabase.from("kpi_medicoes").select("id, kpi_id, valor, data_referencia, observacao"),
+      supabase.from("projeto_responsaveis").select("id, profile_id, contato_externo_id, profiles(id, nome, avatar_url), contatos_externos(id, nome, organizacao)").eq("projeto_id", id),
     ]);
     if (projetoRes.data) setProjeto(projetoRes.data);
     if (etapasRes.data) setEtapas(etapasRes.data);
@@ -337,6 +340,7 @@ export default function ProjetoDetalhe() {
     if (contatosRes.data) setContatosExternos(contatosRes.data);
     if (kpiRes.data) setProjetoKpis(kpiRes.data as any);
     if (kpiMedRes.data) setKpiMedicoes(kpiMedRes.data as any);
+    if (respRes.data) setResponsaveis(respRes.data as any);
   };
 
   const buildProjectContext = useCallback(() => {
@@ -631,60 +635,81 @@ export default function ProjetoDetalhe() {
         <div className="flex-1">
           <h1 className="text-2xl font-display font-bold">{projeto.nome}</h1>
           <p className="text-muted-foreground text-sm">{projeto.areas_estrategicas?.nome}</p>
-          {/* Responsável macro do projeto */}
-          {(isCoordination || projeto.responsavel_id === user?.id) ? (
-            <div className="mt-1.5 max-w-[260px]">
-              <ResponsavelCombobox
-                profiles={profiles}
-                contatosExternos={contatosExternos}
-                value={
-                  projeto.responsavel_externo_id
-                    ? `ext:${projeto.responsavel_externo_id}`
-                    : (projeto.responsavel_id || "")
-                }
-                onValueChange={async (val) => {
-                  if (val === "__novo_externo__") {
-                    setPendingExternoEtapaId("__projeto__");
-                    setShowNovoContato(true);
-                    return;
-                  }
-                  let updateData: any = {};
-                  if (val.startsWith("ext:")) {
-                    updateData = { responsavel_externo_id: val.replace("ext:", ""), responsavel_id: null };
-                  } else {
-                    updateData = { responsavel_id: val, responsavel_externo_id: null };
-                  }
-                  const { error } = await supabase.from("projetos").update(updateData).eq("id", id);
-                  if (error) { toast.error("Erro ao atualizar responsável"); return; }
-                  setProjeto((prev: any) => prev ? { ...prev, ...updateData } : prev);
-                  toast.success("Responsável atualizado");
-                }}
-                placeholder="Atribuir responsável"
-                triggerClassName="h-8 text-xs"
-                showAddExterno
-              />
-            </div>
-          ) : (
-            (() => {
-              const respNome = projeto.responsavel_externo_id
-                ? contatosExternos.find((c: any) => c.id === projeto.responsavel_externo_id)?.nome
-                : profiles.find((p: any) => p.id === projeto.responsavel_id)?.nome;
-              const respAvatar = !projeto.responsavel_externo_id
-                ? profiles.find((p: any) => p.id === projeto.responsavel_id)?.avatar_url
-                : null;
-              return respNome ? (
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <UserAvatar avatarUrl={respAvatar} nome={respNome} className="h-5 w-5" />
-                  <span className="text-xs text-muted-foreground">{respNome}</span>
-                  {projeto.responsavel_externo_id && (
-                    <Badge variant="outline" className="text-[10px] py-0 px-1">Externo</Badge>
+          {/* Responsáveis do projeto - chips */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {responsaveis.map((r: any) => {
+              const isProfile = !!r.profile_id;
+              const nome = isProfile ? r.profiles?.nome : r.contatos_externos?.nome;
+              const avatarUrl = isProfile ? r.profiles?.avatar_url : null;
+              const canRemove = isCoordination || projeto.responsavel_id === user?.id;
+              return (
+                <div key={r.id} className="flex items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-xs">
+                  <UserAvatar avatarUrl={avatarUrl} nome={nome || "?"} className="h-4 w-4" />
+                  <span className="max-w-[120px] truncate">{nome}</span>
+                  {!isProfile && <Badge variant="outline" className="text-[8px] py-0 px-1 h-3.5">Ext</Badge>}
+                  {canRemove && (
+                    <button
+                      className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                      onClick={async () => {
+                        const { error } = await supabase.from("projeto_responsaveis").delete().eq("id", r.id);
+                        if (error) { toast.error("Erro ao remover responsável"); return; }
+                        setResponsaveis((prev) => prev.filter((x: any) => x.id !== r.id));
+                        toast.success("Responsável removido");
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   )}
                 </div>
-              ) : (
-                <span className="text-xs text-muted-foreground mt-1.5 block">Sem responsável</span>
               );
-            })()
-          )}
+            })}
+            {responsaveis.length === 0 && !showAddResponsavel && (
+              <span className="text-xs text-muted-foreground">Sem responsável</span>
+            )}
+            {(isCoordination || projeto.responsavel_id === user?.id) && (
+              showAddResponsavel ? (
+                <div className="max-w-[220px]">
+                  <ResponsavelCombobox
+                    profiles={profiles.filter((p) => !responsaveis.some((r: any) => r.profile_id === p.id))}
+                    contatosExternos={contatosExternos.filter((c) => !responsaveis.some((r: any) => r.contato_externo_id === c.id))}
+                    value=""
+                    onValueChange={async (val) => {
+                      if (val === "__novo_externo__") {
+                        setPendingExternoEtapaId("__projeto__");
+                        setShowNovoContato(true);
+                        setShowAddResponsavel(false);
+                        return;
+                      }
+                      let insertData: any = { projeto_id: id };
+                      if (val.startsWith("ext:")) {
+                        insertData.contato_externo_id = val.replace("ext:", "");
+                      } else {
+                        insertData.profile_id = val;
+                      }
+                      const { error } = await supabase.from("projeto_responsaveis").insert(insertData);
+                      if (error) { toast.error("Erro ao adicionar responsável"); return; }
+                      setShowAddResponsavel(false);
+                      loadData();
+                      toast.success("Responsável adicionado");
+                    }}
+                    placeholder="Adicionar responsável"
+                    triggerClassName="h-7 text-xs"
+                    showAddExterno
+                  />
+                  <Button variant="ghost" size="sm" className="h-6 text-xs mt-1" onClick={() => setShowAddResponsavel(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddResponsavel(true)}
+                  className="flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+                >
+                  <Plus className="h-3 w-3" /> Adicionar
+                </button>
+              )
+            )}
+          </div>
         </div>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={requestAnalise}>
           <Sparkles className="h-4 w-4" /> Sugestões IA

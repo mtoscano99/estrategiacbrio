@@ -50,6 +50,7 @@ export default function Projetos() {
   const [filterCC, setFilterCC] = useState("all");
   const [filterCategoria, setFilterCategoria] = useState("all");
   const [filterResponsavel, setFilterResponsavel] = useState("all");
+  const [projetoResponsaveis, setProjetoResponsaveis] = useState<any[]>([]);
 
   // Category management
   const [showCatDialog, setShowCatDialog] = useState(false);
@@ -70,14 +71,16 @@ export default function Projetos() {
   }, []);
 
   const loadData = async () => {
-    const [projetosRes, areasRes, catRes] = await Promise.all([
+    const [projetosRes, areasRes, catRes, respRes] = await Promise.all([
       supabase.from("projetos").select("*, areas_estrategicas(nome), profiles!projetos_responsavel_id_fkey(id, nome), categorias_projeto(id, nome, cor), contatos_externos(id, nome)").order("created_at", { ascending: false }),
       supabase.from("areas_estrategicas").select("id, nome"),
       supabase.from("categorias_projeto").select("id, nome, descricao, cor").order("nome"),
+      supabase.from("projeto_responsaveis").select("projeto_id, profile_id, contato_externo_id, profiles(id, nome, avatar_url), contatos_externos(id, nome)"),
     ]);
     if (projetosRes.data) setProjetos(projetosRes.data);
     if (areasRes.data) setAreas(areasRes.data);
     if (catRes.data) setCategorias(catRes.data as any);
+    if (respRes.data) setProjetoResponsaveis(respRes.data as any);
   };
 
   const centrosCusto = [...new Set(projetos.map((p) => p.centro_custo).filter(Boolean))].sort();
@@ -85,16 +88,23 @@ export default function Projetos() {
   // Extract unique responsáveis (internos + externos)
   const responsaveis = (() => {
     const map = new Map<string, { id: string; nome: string; tipo: "interno" | "externo" }>();
-    projetos.forEach((p) => {
-      if (p.responsavel_id && p.profiles?.nome) {
-        map.set(`int_${p.responsavel_id}`, { id: p.responsavel_id, nome: p.profiles.nome, tipo: "interno" });
+    projetoResponsaveis.forEach((r: any) => {
+      if (r.profile_id && r.profiles?.nome) {
+        map.set(`int_${r.profile_id}`, { id: r.profile_id, nome: r.profiles.nome, tipo: "interno" });
       }
-      if (p.responsavel_externo_id && p.contatos_externos?.nome) {
-        map.set(`ext_${p.responsavel_externo_id}`, { id: p.responsavel_externo_id, nome: p.contatos_externos.nome, tipo: "externo" });
+      if (r.contato_externo_id && r.contatos_externos?.nome) {
+        map.set(`ext_${r.contato_externo_id}`, { id: r.contato_externo_id, nome: r.contatos_externos.nome, tipo: "externo" });
       }
     });
     return [...map.values()].sort((a, b) => a.nome.localeCompare(b.nome));
   })();
+
+  const getProjetoResponsaveis = (projetoId: string) => {
+    return projetoResponsaveis
+      .filter((r: any) => r.projeto_id === projetoId)
+      .map((r: any) => r.profiles?.nome || r.contatos_externos?.nome)
+      .filter(Boolean);
+  };
 
   const filtered = projetos.filter((p) => {
     const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase());
@@ -103,8 +113,8 @@ export default function Projetos() {
     const matchCC = filterCC === "all" || p.centro_custo === filterCC;
     const matchCat = filterCategoria === "all" || (filterCategoria === "sem_categoria" ? !p.categoria_id : p.categoria_id === filterCategoria);
     const matchResp = filterResponsavel === "all" || filterResponsavel === "sem_responsavel"
-      ? (filterResponsavel === "all" || (!p.responsavel_id && !p.responsavel_externo_id))
-      : (p.responsavel_id === filterResponsavel || p.responsavel_externo_id === filterResponsavel);
+      ? (filterResponsavel === "all" || !projetoResponsaveis.some((r: any) => r.projeto_id === p.id))
+      : projetoResponsaveis.some((r: any) => r.projeto_id === p.id && (r.profile_id === filterResponsavel || r.contato_externo_id === filterResponsavel));
     return matchSearch && matchArea && matchStatus && matchCC && matchCat && matchResp;
   });
 
@@ -216,7 +226,12 @@ export default function Projetos() {
                   {projeto.areas_estrategicas?.nome && (
                     <span className="bg-muted px-2 py-0.5 rounded">{projeto.areas_estrategicas.nome}</span>
                   )}
-                  {projeto.profiles?.nome && <span>Resp: {projeto.profiles.nome}</span>}
+                  {(() => {
+                    const nomes = getProjetoResponsaveis(projeto.id);
+                    if (nomes.length === 0) return null;
+                    const display = nomes.length <= 2 ? nomes.join(", ") : `${nomes[0]}, ${nomes[1]} +${nomes.length - 2}`;
+                    return <span>Resp: {display}</span>;
+                  })()}
                   {projeto.data_inicio && (
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
