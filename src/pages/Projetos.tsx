@@ -88,16 +88,23 @@ export default function Projetos() {
   // Extract unique responsáveis (internos + externos)
   const responsaveis = (() => {
     const map = new Map<string, { id: string; nome: string; tipo: "interno" | "externo" }>();
-    projetos.forEach((p) => {
-      if (p.responsavel_id && p.profiles?.nome) {
-        map.set(`int_${p.responsavel_id}`, { id: p.responsavel_id, nome: p.profiles.nome, tipo: "interno" });
+    projetoResponsaveis.forEach((r: any) => {
+      if (r.profile_id && r.profiles?.nome) {
+        map.set(`int_${r.profile_id}`, { id: r.profile_id, nome: r.profiles.nome, tipo: "interno" });
       }
-      if (p.responsavel_externo_id && p.contatos_externos?.nome) {
-        map.set(`ext_${p.responsavel_externo_id}`, { id: p.responsavel_externo_id, nome: p.contatos_externos.nome, tipo: "externo" });
+      if (r.contato_externo_id && r.contatos_externos?.nome) {
+        map.set(`ext_${r.contato_externo_id}`, { id: r.contato_externo_id, nome: r.contatos_externos.nome, tipo: "externo" });
       }
     });
     return [...map.values()].sort((a, b) => a.nome.localeCompare(b.nome));
   })();
+
+  const getProjetoResponsaveis = (projetoId: string) => {
+    return projetoResponsaveis
+      .filter((r: any) => r.projeto_id === projetoId)
+      .map((r: any) => r.profiles?.nome || r.contatos_externos?.nome)
+      .filter(Boolean);
+  };
 
   const filtered = projetos.filter((p) => {
     const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase());
