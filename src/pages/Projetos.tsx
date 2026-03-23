@@ -50,6 +50,7 @@ export default function Projetos() {
   const [filterCC, setFilterCC] = useState("all");
   const [filterCategoria, setFilterCategoria] = useState("all");
   const [filterResponsavel, setFilterResponsavel] = useState("all");
+  const [projetoResponsaveis, setProjetoResponsaveis] = useState<any[]>([]);
 
   // Category management
   const [showCatDialog, setShowCatDialog] = useState(false);
