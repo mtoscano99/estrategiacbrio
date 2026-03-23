@@ -226,7 +226,12 @@ export default function Projetos() {
                   {projeto.areas_estrategicas?.nome && (
                     <span className="bg-muted px-2 py-0.5 rounded">{projeto.areas_estrategicas.nome}</span>
                   )}
-                  {projeto.profiles?.nome && <span>Resp: {projeto.profiles.nome}</span>}
+                  {(() => {
+                    const nomes = getProjetoResponsaveis(projeto.id);
+                    if (nomes.length === 0) return null;
+                    const display = nomes.length <= 2 ? nomes.join(", ") : `${nomes[0]}, ${nomes[1]} +${nomes.length - 2}`;
+                    return <span>Resp: {display}</span>;
+                  })()}
                   {projeto.data_inicio && (
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
