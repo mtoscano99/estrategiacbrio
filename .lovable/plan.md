@@ -1,67 +1,94 @@
+# Plano: Criar `CONTEXT.md` técnico do sistema
 
+Criar um arquivo `CONTEXT.md` na raiz do projeto contendo a documentação técnica completa do Sistema de Gestão Estratégica CBRio, organizada em tópicos.
 
-## Plano: Implementar Múltiplos Responsáveis + Atualizar Dados da Planilha
+## Estrutura proposta do documento
 
-### Parte 1: Criar tabela `projeto_responsaveis` (Migration)
+### 1. Visão Geral
+- Nome: CBRio – Sistema de Gestão Estratégica
+- Propósito: gestão de planejamento estratégico, KPIs, projetos, aprovações, ATAs e relatórios
+- URLs: preview + publicado (`estrategiacbrio.lovable.app`)
 
-Criar a tabela de junção conforme plano já aprovado anteriormente:
+### 2. Stack Tecnológica (Frontend)
+- React 18 + TypeScript 5 + Vite 5
+- Tailwind CSS v3 + shadcn/ui (Radix UI)
+- React Router v6 (rotas protegidas por sessão e role)
+- TanStack Query (cache e fetch)
+- Sonner + Toaster (notificações)
+- lucide-react (ícones)
+- Design system via tokens semânticos em `src/index.css` + `tailwind.config.ts`
 
-```sql
-CREATE TABLE public.projeto_responsaveis (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  projeto_id uuid NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
-  profile_id uuid REFERENCES profiles(id) ON DELETE CASCADE,
-  contato_externo_id uuid REFERENCES contatos_externos(id) ON DELETE CASCADE,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT chk_one_responsavel CHECK (
-    (profile_id IS NOT NULL AND contato_externo_id IS NULL) OR
-    (profile_id IS NULL AND contato_externo_id IS NOT NULL)
-  ),
-  UNIQUE (projeto_id, profile_id),
-  UNIQUE (projeto_id, contato_externo_id)
-);
+### 3. Backend (Lovable Cloud / Supabase)
+- PostgreSQL gerenciado
+- Auth: email/senha + Google OAuth (via `@lovable.dev/cloud-auth-js`)
+- Storage buckets: `avatars`, `project-attachments`
+- Edge Functions (Deno):
+  - `assign-role` — atribuição de perfil
+  - `ai-project-assistant` — assistente IA de projetos
+  - `import-project-doc` — importação de documento único
+  - `import-projects-bulk` — importação em massa
+  - `process-ata` — processamento de ATAs
+
+### 4. Modelo de Autenticação e Autorização
+- Tabela `profiles` (dados pessoais + `area_id`)
+- Tabela `user_roles` separada com enum `app_role` (`coordenacao`, `lider_area`)
+- Funções SECURITY DEFINER: `has_role`, `get_user_area_id`, `user_in_project_area`
+- Trigger `handle_new_user` cria profile + role no signup
+- Fluxo: Login → AuthContext busca profile+role → se sem role → `/selecionar-perfil` → senão → `/dashboard`
+
+### 5. Modelo de Dados (principais tabelas)
+- `areas` — áreas estratégicas
+- `projetos` — projetos com `area_id`, status, valores
+- `projeto_responsaveis` — junção N:N projeto ↔ profile (múltiplos responsáveis)
+- `etapas_projeto` — etapas com valores gastos (trigger `sync_projeto_valor_gasto`)
+- `kpis` + `medicoes_kpi` — indicadores e medições
+- `contatos_externos` — stakeholders externos
+- `anexos_projeto` — vínculo com storage
+- `aprovacoes` — fluxo de aprovação
+- `notificacoes` — alertas in-app
+- RLS habilitado em todas; políticas usam `has_role` + área do usuário
+
+### 6. IA e Integrações
+- Lovable AI Gateway (Gemini-3-Flash) via `LOVABLE_API_KEY`
+- Usos: assistente de projetos, importação de docs, parsing de ATAs
+
+### 7. Estrutura de Pastas
+```
+src/
+  pages/            # rotas (Dashboard, Projetos, KPIs, Aprovações, etc.)
+  components/
+    layout/         # AppLayout, AppSidebar
+    projetos/       # SWOT, ResponsavelCombobox, Anexos, Contatos
+    kpis/           # KPICard, dialogs
+    calendario/
+  contexts/         # AuthContext
+  integrations/
+    supabase/       # client + types (auto-gen)
+    lovable/        # OAuth helper
+  hooks/ lib/ test/
+supabase/
+  functions/        # edge functions
+  migrations/       # SQL versionado
 ```
 
-Com RLS policies, migração dos dados existentes e inserção dos dados da planilha.
+### 8. Rotas Principais
+- Públicas: `/login`, `/selecionar-perfil`
+- Protegidas (AppLayout): `/dashboard`, `/kpis`, `/projetos`, `/novo-projeto`, `/importar-projetos`, `/importar-ata`, `/calendario`, `/aprovacoes`, `/planejamento`, `/relatorios`, `/relatorios/financeiro`, `/perfil`
 
-### Parte 2: Inserir responsáveis da planilha
+### 9. Build, Dev e Deploy
+- Dev: Vite (`npm run dev`, porta 8080)
+- Testes: Vitest
+- Deploy: Lovable (auto-publish)
+- Variáveis Vite: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`
 
-Usando os IDs já mapeados:
+### 10. Convenções e Boas Práticas
+- Tokens semânticos (sem cores hardcoded)
+- RLS + GRANT obrigatórios em toda tabela `public`
+- Roles **nunca** em `profiles` — sempre em `user_roles`
+- Cliente Supabase auto-gerado (`src/integrations/supabase/client.ts` não editar)
 
-| Responsável na planilha | Contato Externo ID |
-|---|---|
-| Pr. Nélio Paiva | `220501fa-...` (Nélio Paiva) |
-| Keila | `41686253-...` (Keila Leal) |
-| Wesley | `1240c651-...` (Wesley Ramos) |
-| Marcelo | `43022b5e-...` (Marcelo Heredia) |
-| Filipe Carmet | `2f5e40c8-...` |
-| Lorena Andrade | `1dbed532-...` |
-| Jéssica Salviano | `69003a47-...` |
-| Mariane Gaia | `314d24eb-...` |
-| Pedro Fernandes | `339c64c2-...` |
-| Renata | `57d55ac2-...` (Renata Martins) |
-| Marcos Paulo | `d4633b45-...` (Marcos Paulo Almeida) |
-| Eliza Santos | `37d4dbfc-...` |
-| Eduardo Gnisci | `bad43b73-...` |
-| Juliana Leão | `71cb108c-...` |
-| Juninho | `e97e40b4-...` |
-| Davi Sicon | `3d64f278-...` (David Sicon) |
+## Arquivo criado
+- `CONTEXT.md` (raiz do projeto) — ~200-300 linhas, markdown puro, sem emojis, com tabelas e blocos de código onde fizer sentido.
 
-Para projetos com "Wesley e Marcelo", ambos serão adicionados como responsáveis (agora possível com a nova tabela).
-
-### Parte 3: Atualizar UI
-
-**`ProjetoDetalhe.tsx`**: Substituir combobox único por lista de chips com avatar + nome + botão X para remover, e botão "+" para adicionar. Carregar de `projeto_responsaveis` com joins em `profiles` e `contatos_externos`.
-
-**`Projetos.tsx`**: Atualizar cards para exibir múltiplos nomes e filtro de responsável para consultar a nova tabela.
-
-### Parte 4: Script de dados
-
-Executar script SQL/insert para popular `projeto_responsaveis` com os 67 projetos da planilha, mapeando cada nome de projeto ao ID correto no banco. Projetos com "A definir" serão ignorados.
-
-### Resumo de arquivos alterados
-- **Migration SQL**: criar tabela + RLS + migração de dados existentes
-- **Script de dados**: inserir responsáveis da planilha na nova tabela
-- **`src/pages/ProjetoDetalhe.tsx`**: UI de chips para múltiplos responsáveis
-- **`src/pages/Projetos.tsx`**: exibição e filtro de múltiplos responsáveis
-
+## Confirmação
+Posso seguir e criar `CONTEXT.md` com essa estrutura?
